@@ -3356,6 +3356,7 @@ export const EN: Readonly<Record<string, string>> = {
   "CEO salvo: {0}.": "CEO saved: {0}.",
   "{0} não recebe mensagens daqui: abri os detalhes.": "{0} can’t take messages from here: opened their details.",
   "Na ligação: {0}": "On the call: {0}",
+  "Chamando…": "Calling…",
   "Falar com {0}": "Talk to {0}",
   "Levantar": "Stand up",
   "Sentar": "Sit",

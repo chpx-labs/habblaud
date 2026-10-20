@@ -18,6 +18,7 @@ import { DictationButton, dictationAvailable } from './dictation';
 import { copyText, h, iconButton, setHidden, setText } from './dom';
 import { renderMarkdown } from './markdown';
 import { createAvatarPlaceholder, updateAvatar } from './avatar';
+import { playRing, ringMs, type Ringing } from './ringtone';
 import { ICONS } from './icons';
 import { Movable } from './movable';
 import { parseAppend, parseInit, terminalUrl } from './terminal';
@@ -192,6 +193,12 @@ export class CallPanel implements UiComponent, CallControl {
   private unlocked = false;
   private player: HTMLAudioElement = typeof Audio === 'function' ? new Audio() : ({} as HTMLAudioElement);
   private kindRow: HTMLElement;
+  /** Quem ainda está "chamando" (o toque antes de atender): o timer e o som. */
+  private ringing = new Map<string, { timer: ReturnType<typeof setTimeout>; sound: Ringing }>();
+  /** Tela de "Chamando Fulano…" (a primeira pessoa da ligação), no lugar da conversa. */
+  private ringEl: HTMLElement;
+  private ringFace: HTMLElement;
+  private ringName: HTMLElement;
   private kindSel: HTMLSelectElement;
 
   private title: HTMLElement;
@@ -218,6 +225,17 @@ export class CallPanel implements UiComponent, CallControl {
       this.addSel.value = '';
       if (id) this.call(id);
     });
+
+    this.ringFace = createAvatarPlaceholder('lg');
+    this.ringName = h('p', { class: 'ui-call__ring-name' });
+    this.ringEl = h(
+      'div',
+      { class: 'ui-call__ringing', hidden: true },
+      h('div', { class: 'ui-call__ring-face' }, h('span', { class: 'ui-call__ring-wave' }), h('span', { class: 'ui-call__ring-wave ui-call__ring-wave--2' }), this.ringFace),
+      this.ringName,
+      h('p', { class: 'ui-call__ring-status', text: tr('Chamando…') }),
+      h('span', { class: 'ui-call__ring-phone', text: '📞', attrs: { 'aria-hidden': 'true' } }),
+    );
 
     this.logEl = h('ol', { class: 'ui-call__log', attrs: { 'aria-label': tr('O que foi dito na ligação') } });
     this.status = h('p', { class: 'ui-call__status', role: 'status', attrs: { 'aria-live': 'polite' } });
@@ -267,6 +285,7 @@ export class CallPanel implements UiComponent, CallControl {
       { class: 'ui-call', hidden: true, attrs: { 'aria-label': tr('Ligação com os agentes') } },
       head,
       h('div', { class: 'ui-call__bar' }, this.chips, this.addSel),
+      this.ringEl,
       this.logEl,
       this.status,
       h('div', { class: 'ui-call__controls' }, this.talk.el, this.voiceBtn, this.repeatBtn),
@@ -314,16 +333,47 @@ export class CallPanel implements UiComponent, CallControl {
     const party: Party = { id: a.id, name: a.name, index: this.nextIndex++, seed: seedOf(a.id), source: null, seen: new Set(), status: a.status, listening: 'connecting', pending: [] };
     this.parties.set(a.id, party);
     this.target = a.id;
-    this.listen(party);
     const many = this.parties.size > 1;
-    this.addLog({ kind: 'info', text: many ? tr('{0} entrou na ligação.', [a.name]) : tr('Ligação com {0}.', [a.name]) });
-    // Dentro do clique: libera a voz no celular (o iPhone só fala se a primeira fala nasce de um toque).
+    // Dentro do clique: libera a voz no celular (o iPhone só fala se a primeira fala nasce de um toque) e o toque.
     this.unlockAudio();
-    // Pergunta pela voz natural só ao ligar (não na abertura da página); a saudação espera a resposta para já sair nela.
-    const greeting = many ? tr('{0} na linha.', [a.name]) : tr('Ligação com {0}.', [a.name]);
-    void this.loadNatural().then(() => this.parties.has(party.id) && this.speak(greeting, party));
+    // Chamando: dois toques na primeira pessoa (com a tela "Chamando…"), um ao pôr mais alguém; depois "atende".
+    const rings = many ? 1 : 2;
+    const sound = this.voiceOn ? playRing(rings) : { stop() {} };
+    const timer = setTimeout(() => this.answered(party, many), ringMs(rings));
+    this.ringing.set(a.id, { timer, sound });
+    if (!many) this.showRinging(a);
+    // Pergunta pela voz natural já (só ao ligar, não na abertura da página): a saudação sai nela.
+    void this.loadNatural();
     setHidden(this.el, false);
     this.ctx.invalidate();
+  }
+
+  /** Atendeu: some o "Chamando…", começa a ouvir e cumprimenta. */
+  private answered(party: Party, many: boolean): void {
+    this.ringing.delete(party.id);
+    if (this.parties.get(party.id) !== party) return;
+    this.hideRinging(party.id);
+    this.listen(party);
+    this.addLog({ kind: 'info', text: many ? tr('{0} entrou na ligação.', [party.name]) : tr('Ligação com {0}.', [party.name]) });
+    const greeting = many ? tr('{0} na linha.', [party.name]) : tr('Ligação com {0}.', [party.name]);
+    void this.loadNatural().then(() => this.parties.get(party.id) === party && this.speak(greeting, party));
+    this.ctx.invalidate();
+  }
+
+  private showRinging(a: AgentInfo): void {
+    updateAvatar(this.ringFace, a, 'lg');
+    this.ringFace.style.setProperty('--acc', this.ctx.account(a.account)?.color ?? '#8b98b3');
+    setText(this.ringName, a.name);
+    this.ringEl.dataset.id = a.id;
+    setHidden(this.ringEl, false);
+    setHidden(this.logEl, true);
+  }
+
+  private hideRinging(id?: string): void {
+    if (id !== undefined && this.ringEl.dataset.id !== id) return;
+    delete this.ringEl.dataset.id;
+    setHidden(this.ringEl, true);
+    setHidden(this.logEl, false);
   }
 
   // ---------------------------------------------------------------- render
@@ -426,6 +476,7 @@ export class CallPanel implements UiComponent, CallControl {
         face.style.setProperty('--acc', this.ctx.account(agent.account)?.color ?? '#8b98b3');
       }
       chip.classList.toggle('is-deaf', p.listening === 'failed');
+      chip.classList.toggle('is-ringing', this.ringing.has(id));
       pick.title =
         p.listening === 'failed'
           ? tr('Não dá para ouvir {0} daqui (terminal não liberado): as mensagens ainda chegam.', [p.name])
@@ -465,6 +516,13 @@ export class CallPanel implements UiComponent, CallControl {
   private drop(id: string): void {
     const p = this.parties.get(id);
     p?.source?.close();
+    const r = this.ringing.get(id);
+    if (r) {
+      clearTimeout(r.timer);
+      r.sound.stop();
+      this.ringing.delete(id);
+    }
+    this.hideRinging(id);
     this.parties.delete(id);
     if (this.target === id) this.target = this.parties.keys().next().value ?? null;
   }

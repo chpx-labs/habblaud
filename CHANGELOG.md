@@ -12,6 +12,10 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Ligação: efeito de "chamando".** Ao ligar, a janela mostra o rosto do agente com ondas pulsando, "Chamando…" e
+  o fone balançando, com o toque de telefone (dois toques); depois "atende" e cumprimenta. Pôr mais alguém na
+  ligação dá um toque e o rosto dele pisca no nome. Com a voz no Mudo, sem som.
+
 - **Renomear salas pelo acesso remoto.** `rooms` em `HABBLAUD_REMOTE_ALLOW` libera renomear salas (o nome da placa)
   pelo celular ou pelo Tailscale com login; sem ele, continua só pelo próprio computador.
 

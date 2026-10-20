@@ -3373,6 +3373,7 @@ export const FR: Readonly<Record<string, string>> = {
   "CEO salvo: {0}.": "PDG enregistré : {0}.",
   "{0} não recebe mensagens daqui: abri os detalhes.": "{0} ne reçoit pas de messages d’ici : ses détails sont ouverts.",
   "Na ligação: {0}": "En appel : {0}",
+  "Chamando…": "Appel en cours…",
   "Falar com {0}": "Parler à {0}",
   "Levantar": "Se lever",
   "Sentar": "S’asseoir",

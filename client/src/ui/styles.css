@@ -11563,3 +11563,132 @@ html.is-replay #world {
   background: transparent;
   animation: none;
 }
+
+/* Ligação: "Chamando Fulano…" (o rosto com ondas pulsando e o fone balançando) até atender */
+.ui-call__ringing {
+  flex: 1 1 auto;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-sm);
+  background: radial-gradient(circle at 50% 40%, rgba(80, 200, 120, 0.14), transparent 60%), var(--ui-bg-soft);
+}
+
+.ui-call__ringing[hidden] {
+  display: none;
+}
+
+.ui-call__ring-face {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 6px;
+}
+
+.ui-call__ring-face .ui-avatar {
+  position: relative;
+  z-index: 1;
+  transform: scale(1.5);
+  animation: ui-call-bob 1.3s ease-in-out infinite;
+}
+
+.ui-call__ring-wave {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 3px solid rgba(80, 200, 120, 0.85);
+  animation: ui-call-wave 1.3s ease-out infinite;
+}
+
+.ui-call__ring-wave--2 {
+  animation-delay: 0.65s;
+}
+
+.ui-call__ring-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--ui-text);
+}
+
+.ui-call__ring-status {
+  margin: 0;
+  color: var(--ui-text-dim, #9aa4b8);
+  font-size: 13px;
+  animation: ui-call-blink 1.3s ease-in-out infinite;
+}
+
+.ui-call__ring-phone {
+  margin-top: 4px;
+  font-size: 22px;
+  animation: ui-call-shake 1.3s ease-in-out infinite;
+}
+
+.ui-call__chip.is-ringing .ui-call__face {
+  animation: ui-call-chip 0.65s ease-in-out infinite alternate;
+}
+
+@keyframes ui-call-wave {
+  from {
+    transform: scale(0.75);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+@keyframes ui-call-bob {
+  0%,
+  100% {
+    transform: scale(1.5) translateY(0);
+  }
+  50% {
+    transform: scale(1.5) translateY(-2px);
+  }
+}
+
+@keyframes ui-call-blink {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes ui-call-shake {
+  0%,
+  50%,
+  100% {
+    transform: rotate(0);
+  }
+  10%,
+  30% {
+    transform: rotate(-14deg);
+  }
+  20%,
+  40% {
+    transform: rotate(14deg);
+  }
+}
+
+@keyframes ui-call-chip {
+  to {
+    box-shadow: 0 0 0 4px rgba(80, 200, 120, 0.5);
+    border-radius: 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-call__ring-face .ui-avatar,
+  .ui-call__ring-wave,
+  .ui-call__ring-status,
+  .ui-call__ring-phone,
+  .ui-call__chip.is-ringing .ui-call__face {
+    animation: none;
+  }
+}

@@ -17,6 +17,7 @@ import type { CallControl, UiComponent, UiContext } from './context';
 import { DictationButton, dictationAvailable } from './dictation';
 import { copyText, h, iconButton, setHidden, setText } from './dom';
 import { renderMarkdown } from './markdown';
+import { createAvatarPlaceholder, updateAvatar } from './avatar';
 import { ICONS } from './icons';
 import { Movable } from './movable';
 import { parseAppend, parseInit, terminalUrl } from './terminal';
@@ -407,7 +408,9 @@ export class CallPanel implements UiComponent, CallControl {
       if (!chip) {
         const pick = h('button', { class: 'ui-call__chip-name', type: 'button', attrs: { role: 'radio' }, on: { click: () => this.setTarget(id) } });
         const out = iconButton(ICONS.close, tr('Tirar da ligação'), () => this.remove(id), 'ui-call__chip-x');
-        chip = h('span', { class: 'ui-call__chip' }, h('span', { class: 'ui-call__dot', attrs: { 'aria-hidden': 'true' } }), pick, out);
+        // O rosto do personagem (o mesmo da lista lateral), com o ponto de status no canto.
+        const face = h('span', { class: 'ui-call__face' }, createAvatarPlaceholder('sm'), h('span', { class: 'ui-call__dot', attrs: { 'aria-hidden': 'true' } }));
+        chip = h('span', { class: 'ui-call__chip' }, face, pick, out);
         chip.dataset.id = id;
         this.chips.append(chip);
       }
@@ -416,6 +419,12 @@ export class CallPanel implements UiComponent, CallControl {
       pick.setAttribute('aria-checked', String(id === this.target));
       chip.classList.toggle('is-target', many && id === this.target);
       chip.dataset.status = p.status ?? '';
+      const agent = this.ctx.agent(id);
+      const face = chip.querySelector<HTMLElement>('.ui-avatar');
+      if (agent && face) {
+        updateAvatar(face, agent, 'sm');
+        face.style.setProperty('--acc', this.ctx.account(agent.account)?.color ?? '#8b98b3');
+      }
       chip.classList.toggle('is-deaf', p.listening === 'failed');
       pick.title =
         p.listening === 'failed'

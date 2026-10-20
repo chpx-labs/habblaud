@@ -11226,10 +11226,10 @@ html.is-replay #world {
 .ui-call__chip {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 2px 0 8px;
-  border-radius: 13px;
+  gap: 6px;
+  height: 38px;
+  padding: 0 2px 0 3px;
+  border-radius: 19px;
   border: 1px solid var(--ui-line-strong);
   background: var(--ui-bg-soft);
 }
@@ -11244,9 +11244,24 @@ html.is-replay #world {
   border-style: dashed;
 }
 
+.ui-call__face {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+.ui-call__face .ui-avatar {
+  border-radius: 50%;
+}
+
+/* Ponto de status no canto do rosto. */
 .ui-call__dot {
-  width: 8px;
-  height: 8px;
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid rgb(20, 24, 33);
   background: var(--st-idle);
 }
 

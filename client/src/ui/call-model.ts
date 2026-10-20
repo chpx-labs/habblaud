@@ -213,3 +213,54 @@ export function lastFinalReply(entries: readonly { kind: string; id: string; tex
   if (!busyNow && pending.length) last = pending;
   return last;
 }
+
+/** Uma troca da conversa: o seu pedido e a resposta final dele (vazia se ainda está trabalhando nele). */
+export interface Exchange {
+  prompt: { text: string; at: number } | null;
+  reply: ReplyPart[];
+  /** Quando a resposta final chegou (ou o pedido, sem resposta). */
+  at: number;
+}
+
+/** Quantas trocas o histórico da ligação mostra ao abrir. */
+export const HISTORY_MAX = 10;
+
+/**
+ * Histórico ao abrir a ligação: as últimas `max` trocas (pedido + resposta final), da mais antiga para a mais recente.
+ * Só a resposta que fechou cada demanda (os textos no caminho eram passos). Com o agente no meio de uma demanda
+ * (`busyNow`), a última troca fica só com o pedido.
+ */
+export function recentExchanges(
+  entries: readonly { kind: string; id: string; at?: number; text?: string }[],
+  busyNow: boolean,
+  max = HISTORY_MAX,
+): Exchange[] {
+  const out: Exchange[] = [];
+  let cur: Exchange | null = null;
+  let pending: ReplyPart[] = [];
+  let pendingAt = 0;
+  const close = (withPending: boolean) => {
+    if (!cur) {
+      // resposta sem pedido no começo da janela lida (o pedido ficou antes)
+      if (withPending && pending.length) out.push({ prompt: null, reply: pending, at: pendingAt });
+      return;
+    }
+    if (withPending && pending.length) {
+      cur.reply = pending;
+      cur.at = pendingAt;
+    }
+    out.push(cur);
+  };
+  for (const e of entries) {
+    if (e.kind === 'user') {
+      close(true);
+      cur = { prompt: { text: (e.text ?? '').trim(), at: e.at ?? 0 }, reply: [], at: e.at ?? 0 };
+      pending = [];
+      continue;
+    }
+    pending = finalReplyStep(pending, e, true).pending;
+    if (e.kind === 'assistant') pendingAt = e.at ?? pendingAt;
+  }
+  close(!busyNow);
+  return out.filter((x) => x.reply.length || x.prompt?.text).slice(-max);
+}

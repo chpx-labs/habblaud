@@ -12,6 +12,11 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Ligação: histórico da conversa.** Ao abrir a ligação aparecem as últimas 10 trocas com o agente (o seu pedido e a
+  resposta final de cada uma, com a hora); a mais recente aberta e as outras fechadas, com o começo à vista (um clique
+  abre). Vem da própria sessão do agente: não some ao encerrar e aparece no celular. Nada disso é lido em voz alta;
+  "Repetir" lê a mais recente.
+
 - **Ligação: efeito de "chamando".** Ao ligar, a janela mostra o rosto do agente com ondas pulsando, "Chamando…" e
   o fone balançando, com o toque de telefone (dois toques); depois "atende" e cumprimenta. Pôr mais alguém na
   ligação dá um toque e o rosto dele pisca no nome. Com a voz no Mudo, sem som.

@@ -3346,7 +3346,8 @@ export const ES: Readonly<Record<string, string>> = {
   "Após 15 min parados": "Tras 15 min parados",
   "Logo": "Enseguida",
   "Mostrar tudo ({0} linhas)": "Mostrar todo ({0} líneas)",
-  "{0} (última resposta)": "{0} (última respuesta)",
+  "Última conversa com {0}:": "Última conversación con {0}:",
+  "Últimas {0} conversas com {1}:": "Últimas {0} conversaciones con {1}:",
   // sala do CEO e o personagem controlado
   "Você": "Tú",
   "Controlar o CEO (G)": "Controlar al CEO (G)",

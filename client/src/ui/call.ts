@@ -11,7 +11,7 @@ import { MESSAGE_MAX } from '../../../shared/messages';
 import type { AgentInfo, AgentStatus, TerminalEntry } from '../../../shared/types';
 import { tr } from '../../../shared/i18n';
 import { access } from '../net/access';
-import { addressedTo, chunks, finalReplyStep, joinReply, lastFinalReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker, type ReplyPart, type VoiceLike } from './call-model';
+import { addressedTo, chunks, finalReplyStep, joinReply, midTurn, recentExchanges, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker, type ReplyPart, type VoiceLike } from './call-model';
 import { composerMode, messageText } from './composer-model';
 import type { CallControl, UiComponent, UiContext } from './context';
 import { DictationButton, dictationAvailable } from './dictation';
@@ -26,7 +26,7 @@ import { parseAppend, parseInit, terminalUrl } from './terminal';
 /** Participantes ao mesmo tempo (cada um abre um stream; o servidor aceita 8 no total). */
 export const MAX_PARTIES = 4;
 /** Linhas guardadas no registro da ligação. */
-const LOG_MAX = 40;
+const LOG_MAX = 60;
 const VOICE_KEY = 'habblaud.call.voice';
 /** Voz escolhida: 'natural' (servidor, OpenAI) ou 'browser'. */
 const VOICE_KIND_KEY = 'habblaud.call.voiceKind';
@@ -112,6 +112,24 @@ interface LogLine {
   text: string;
   /** Resposta do agente em markdown: mostrada formatada, como no terminal (a voz lê `text`). */
   md?: string;
+  /** Histórico (de antes da ligação): mostra a hora; `folded` = resposta fechada, abre em "Mostrar tudo". */
+  at?: number;
+  folded?: boolean;
+}
+
+/** Pedido longo no histórico: corta (o terminal tem o texto inteiro). */
+const PROMPT_CLIP = 280;
+
+function clip(s: string, max: number): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+/** Hora de uma linha do histórico: só HH:MM hoje; com o dia, antes de hoje. */
+function stamp(at: number): string {
+  const d = new Date(at);
+  const today = new Date().toDateString() === d.toDateString();
+  return today ? d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : d.toLocaleString([], { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 function readVoicePref(): boolean {
@@ -567,17 +585,11 @@ export class CallPanel implements UiComponent, CallControl {
       const data = parseInit((ev as MessageEvent).data);
       // A conversa de antes (ou repetida numa reconexão) só é marcada como vista.
       for (const e of data?.entries ?? []) p.seen.add(e.id);
-      // Ao ligar (não numa reconexão): a última resposta, só na tela, para saber em que pé a conversa está.
+      // Ao ligar (não numa reconexão): as últimas trocas (pedido + resposta final), só na tela, para retomar o
+      // assunto. A mais recente aberta; as outras fechadas em "Mostrar tudo".
       if (!p.shownLast) {
         p.shownLast = true;
-        const last = joinReply(lastFinalReply(data?.entries ?? [], midTurn(p.status)));
-        if (last) {
-          const text = speakableText(last);
-          this.addLog({ kind: 'agent', who: tr('{0} (última resposta)', [p.name]), text, md: last });
-          // Repetir lê essa resposta, se você quiser ouvi-la.
-          if (text) this.lastSpoken = { text: withSpeaker(text, p.name, this.parties.size > 1), party: p };
-          this.ctx.invalidate();
-        }
+        this.showHistory(p, data?.entries ?? []);
       }
       p.listening = 'open';
       this.ctx.invalidate();
@@ -594,6 +606,26 @@ export class CallPanel implements UiComponent, CallControl {
       this.addLog({ kind: 'error', text: tr('Perdi o áudio de {0}: feche e ligue de novo.', [p.name]) });
       this.ctx.invalidate();
     });
+  }
+
+  /** O histórico da conversa ao abrir a ligação (call-model.ts, recentExchanges). Nada é lido em voz alta. */
+  private showHistory(p: Party, entries: readonly TerminalEntry[]): void {
+    const hist = recentExchanges(entries, midTurn(p.status));
+    if (!hist.length) return;
+    const many = this.parties.size > 1;
+    let lastReply = -1;
+    hist.forEach((x, i) => x.reply.length && (lastReply = i));
+    this.addLog({ kind: 'info', text: hist.length === 1 ? tr('Última conversa com {0}:', [p.name]) : tr('Últimas {0} conversas com {1}:', [hist.length, p.name]) });
+    hist.forEach((x, i) => {
+      if (x.prompt?.text) this.addLog({ kind: 'me', who: many ? p.name : undefined, text: clip(x.prompt.text, PROMPT_CLIP), at: x.prompt.at || undefined });
+      const md = joinReply(x.reply);
+      if (!md) return;
+      const text = speakableText(md);
+      this.addLog({ kind: 'agent', who: p.name, text, md, at: x.at || undefined, folded: i !== lastReply });
+      // Repetir lê a mais recente, se você quiser ouvi-la.
+      if (i === lastReply && text) this.lastSpoken = { text: withSpeaker(text, p.name, many), party: p };
+    });
+    this.ctx.invalidate();
   }
 
   private onEntries(p: Party, entries: TerminalEntry[]): void {
@@ -847,9 +879,21 @@ export class CallPanel implements UiComponent, CallControl {
     this.log.push(line);
     if (this.log.length > LOG_MAX) this.log.splice(0, this.log.length - LOG_MAX);
     const li = h('li', { class: `ui-call__line is-${line.kind}` });
-    if (line.kind === 'me') li.append(h('b', { text: line.who ? tr('Você → {0}: ', [line.who]) : tr('Você: ') }));
-    else if (line.who) li.append(h('b', { class: line.md ? 'ui-call__who' : undefined, text: line.md ? line.who : `${line.who}: ` }));
-    if (line.md) li.append(formatted(line.md));
+    let label: HTMLElement | null = null;
+    if (line.kind === 'me') label = h('b', { text: line.who ? tr('Você → {0}: ', [line.who]) : tr('Você: ') });
+    else if (line.who) label = h('b', { class: line.md ? 'ui-call__who' : undefined, text: line.md ? line.who : `${line.who}: ` });
+    if (line.at) {
+      // histórico: a hora ao lado do nome
+      li.classList.add('is-history');
+      const time = h('span', { class: 'ui-call__time', text: stamp(line.at) });
+      if (label) label.append(time);
+      else li.append(time);
+    }
+    if (label) li.append(label);
+    if (line.md && line.folded) {
+      // resposta antiga: fechada, com o começo dela à vista
+      li.append(h('details', { class: 'ui-call__old' }, h('summary', { text: clip(line.text || line.md, 110) }), formatted(line.md)));
+    } else if (line.md) li.append(formatted(line.md));
     else li.append(document.createTextNode(line.text));
     this.logEl.append(li);
     while (this.logEl.children.length > LOG_MAX) this.logEl.firstElementChild?.remove();

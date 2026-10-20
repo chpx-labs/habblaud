@@ -11692,3 +11692,35 @@ html.is-replay #world {
     animation: none;
   }
 }
+
+/* Ligação: histórico ao abrir (hora de cada linha e respostas antigas fechadas) */
+.ui-call__line.is-history {
+  opacity: 0.82;
+}
+
+.ui-call__time {
+  margin: 0 6px;
+  font-weight: 400;
+  font-size: 10.5px;
+  color: var(--ui-text-dim, #9aa4b8);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-call__old > summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--ui-text-dim, #b4bccb);
+}
+
+.ui-call__old > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ui-call__old > summary::before {
+  content: '▸ ';
+  color: var(--ui-accent, #6aa2ff);
+}
+
+.ui-call__old[open] > summary {
+  display: none;
+}

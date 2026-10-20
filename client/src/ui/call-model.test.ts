@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addressedTo, chunks, finalReplyStep, joinReply, lastFinalReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker } from './call-model';
+import { addressedTo, chunks, finalReplyStep, joinReply, lastFinalReply, midTurn, recentExchanges, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker } from './call-model';
 
 describe('speakableText', () => {
   it('tira blocos de código, tabelas e links', () => {
@@ -167,5 +167,34 @@ describe('lastFinalReply', () => {
   it('sem resposta nenhuma: vazio', () => {
     expect(lastFinalReply([u('1'), a('2', 'Vou ver.'), t('3')], false)).toEqual([]);
     expect(lastFinalReply([], false)).toEqual([]);
+  });
+});
+
+describe('recentExchanges (histórico ao abrir a ligação)', () => {
+  const u = (id: string, text: string, at = 0) => ({ kind: 'user', id, text, at });
+  const a = (id: string, text: string, at = 0) => ({ kind: 'assistant', id, text, at });
+  const t = (id: string) => ({ kind: 'tool', id });
+
+  it('cada pedido com a resposta final dele (os textos antes de ferramentas eram passos)', () => {
+    const ex = recentExchanges([u('1', 'faz A', 1), a('2', 'vou ver', 2), t('3'), a('4', 'feito A', 4), u('5', 'faz B', 5), a('6', 'feito B', 6)], false);
+    expect(ex.map((x) => [x.prompt?.text, joinReply(x.reply), x.at])).toEqual([
+      ['faz A', 'feito A', 4],
+      ['faz B', 'feito B', 6],
+    ]);
+  });
+
+  it('trabalhando agora: a última troca fica só com o pedido', () => {
+    const ex = recentExchanges([u('1', 'faz A'), a('2', 'feito A'), u('3', 'faz B'), a('4', 'olhando')], true);
+    expect(ex.map((x) => [x.prompt?.text, joinReply(x.reply)])).toEqual([
+      ['faz A', 'feito A'],
+      ['faz B', ''],
+    ]);
+  });
+
+  it('fica com as últimas `max` e aceita resposta sem o pedido no começo', () => {
+    const entries = [a('0', 'resto'), ...Array.from({ length: 12 }, (_, i) => [u(`u${i}`, `p${i}`), a(`a${i}`, `r${i}`)]).flat()];
+    const ex = recentExchanges(entries, false, 3);
+    expect(ex.map((x) => x.prompt?.text)).toEqual(['p9', 'p10', 'p11']);
+    expect(recentExchanges([a('0', 'resto'), u('1', 'p')], true)[0]).toMatchObject({ prompt: null });
   });
 });

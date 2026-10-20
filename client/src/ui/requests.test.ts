@@ -36,3 +36,23 @@ describe('envelopes nas salas', () => {
     ]);
   });
 });
+
+describe('painel do CEO', () => {
+  it('estado de cada setor pelo escritório', async () => {
+    const { sectorLive, sectorState } = await import('./ceo-dashboard');
+    const stats = (n: number) => ({ toolCalls: 0, tokensIn: n, tokensOut: n, subagents: 0 });
+    const snap = {
+      rooms: [{ id: 'R1', sector: 'marketing' }, { id: 'R2' }],
+      agents: [
+        { name: 'Glória', kind: 'main', roomId: 'R1', status: 'idle', stats: stats(10) },
+        { name: 'Sub', kind: 'sub', roomId: 'R1', status: 'working', stats: stats(5) },
+        { name: 'Outro', kind: 'main', roomId: 'R2', status: 'working', stats: stats(1) },
+      ],
+    } as never;
+    const live = sectorLive(snap);
+    expect(live.get('marketing')).toEqual({ agents: [{ name: 'Glória', status: 'idle' }], tokens: 30 });
+    expect(sectorState(live.get('marketing'))).toBe('idle');
+    expect(sectorState(undefined)).toBe('closed');
+    expect(sectorState({ agents: [{ name: 'a', status: 'working' }, { name: 'b', status: 'waiting' }], tokens: 0 })).toBe('waiting');
+  });
+});

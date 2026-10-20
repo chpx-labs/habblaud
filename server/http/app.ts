@@ -20,6 +20,7 @@ import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../s
 import type { SpawnFolder } from '../spawn/folders';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
 import { parseTtsRequest, TTS_BODY_MAX, type TtsService } from '../tts/tts';
+import { readCompanyDashboard } from '../company/dashboard';
 import { CompanyError, ceoMessage, createAsCeo, parseCeoReply, parseCeoRequest, readCompanyRequests, replyAsCeo } from '../company/requests';
 import type { DeliveryIndex } from '../deliveries/deliveries';
 import type { FileFetcher } from '../deliveries/fetcher';
@@ -584,6 +585,13 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             })
             .catch((err) => fail(res, err));
       } else methodNotAllowed(res, 'GET, POST');
+      return true;
+    }
+    if (path === '/api/company/dashboard') {
+      // Painel do CEO (company/dashboard.ts): só leitura, como o escritório.
+      if (!isRead) methodNotAllowed(res, 'GET');
+      else if (!deps.companyDir) sendJson(res, 404, { error: tr('pedidos entre setores desligados (HABBLAUD_COMPANY_DIR)') });
+      else readCompanyDashboard(deps.companyDir).then((d) => sendJson(res, 200, d), (err) => fail(res, err));
       return true;
     }
     if (path === '/api/company/requests' || path.startsWith('/api/company/requests/')) {

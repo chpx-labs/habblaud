@@ -12,6 +12,11 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Painel do CEO.** Com `HABBLAUD_COMPANY_DIR`, a maleta na barra do topo (tecla `B`) abre o dia da empresa: o que espera
+  você (com Aprovar/Recusar ali mesmo), quantos pedidos estão abertos e parados há mais de um dia, e um cartão por setor
+  com quem está aberto, o turno, as linhas de hoje do `diario.md`, as entregas das últimas 24 h e os tokens das sessões
+  abertas; embaixo, o uso da conta (5 h e semana).
+
 - **Salas fixas dos setores (organograma).** Com `HABBLAUD_COMPANY_DIR`, cada setor de `setores.json` (menos o CEO) tem
   a sua sala no prédio mesmo sem ninguém, com o nome do setor (o renomear vence), e os setores ficam juntos nas
   primeiras vagas. Sala vazia não vira andar no Habblaud World: lá só conta sala com agente. Cada sala mostra um

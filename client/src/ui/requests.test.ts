@@ -17,3 +17,22 @@ describe('pedidos entre setores (página)', () => {
     expect(isOpen({ status: 'feito' })).toBe(false);
   });
 });
+
+describe('envelopes nas salas', () => {
+  it('conta os abertos na sala do setor de destino e os do CEO na sala dele', async () => {
+    const { roomBadges, CEO_ROOM } = await import('./requests');
+    const base = { from: 'x', title: 't', text: '', createdAt: 1, updatedAt: 1, history: [] };
+    const reqs = [
+      { ...base, id: '1', to: 'marketing', status: 'aberto' as const },
+      { ...base, id: '2', to: 'marketing', status: 'andamento' as const },
+      { ...base, id: '3', to: 'marketing', status: 'feito' as const },
+      { ...base, id: '4', to: 'ceo', status: 'aberto' as const },
+      { ...base, id: '5', to: 'desenvolvimento', status: 'aberto' as const },
+    ];
+    const rooms = [{ id: 'C:\empresa\marketing', sector: 'marketing' }, { id: '/outro' }];
+    expect([...roomBadges(reqs, rooms)]).toEqual([
+      ['C:\empresa\marketing', 2],
+      [CEO_ROOM, 1],
+    ]);
+  });
+});

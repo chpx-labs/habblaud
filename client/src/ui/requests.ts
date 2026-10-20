@@ -64,6 +64,22 @@ export function appNovoText(ideia: string): string {
   ].join('\n');
 }
 
+/** Sala do CEO no prédio (world/layout/ceo.ts): recebe o envelope dos pedidos feitos a ele. */
+export const CEO_ROOM = 'core:ceo';
+
+/**
+ * Pedidos abertos por sala: cada pedido conta na sala do setor de destino (a sala fixa com `sector`), e os feitos ao
+ * CEO, na sala do CEO.
+ */
+export function roomBadges(requests: readonly CompanyRequest[], rooms: readonly { id: string; sector?: string }[]): Map<string, number> {
+  const bySector = new Map<string, number>();
+  for (const r of requests) if (isOpen(r)) bySector.set(r.to, (bySector.get(r.to) ?? 0) + 1);
+  const out = new Map<string, number>();
+  for (const room of rooms) if (room.sector && bySector.get(room.sector)) out.set(room.id, bySector.get(room.sector)!);
+  if (bySector.get('ceo')) out.set(CEO_ROOM, bySector.get('ceo')!);
+  return out;
+}
+
 export function statusLabel(s: RequestStatus): string {
   switch (s) {
     case 'aberto':
@@ -177,9 +193,22 @@ export class CompanyRequests implements UiComponent {
 
   render(): void {
     const store = this.ctx.store;
+    // salas mudaram (uma sala de setor apareceu): refaz os envelopes do prédio
+    const key = (store.snapshot?.rooms ?? []).map((r) => `${r.id}:${r.sector ?? ''}`).join('|');
+    if (key !== this.roomsKey) {
+      this.roomsKey = key;
+      this.pushRoomBadges();
+    }
     if (this.probed || store.mock || store.replaying || !store.snapshot) return;
     this.probed = true;
     void this.refresh();
+  }
+
+  private roomsKey = '';
+
+  private pushRoomBadges(): void {
+    const rooms = this.ctx.store.replaying ? [] : (this.ctx.store.snapshot?.rooms ?? []);
+    this.ctx.world.setRoomBadges?.(roomBadges(this.available ? this.list : [], rooms));
   }
 
   private toggle(): void {
@@ -310,6 +339,7 @@ export class CompanyRequests implements UiComponent {
     setText(this.badge, String(n));
     setHidden(this.badge, !n);
     this.button.title = n ? tr('Pedidos entre setores: {0} abertos', [n]) : tr('Pedidos entre setores');
+    this.pushRoomBadges();
   }
 
   private paint(): void {

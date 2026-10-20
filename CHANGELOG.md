@@ -12,6 +12,11 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Salas fixas dos setores (organograma).** Com `HABBLAUD_COMPANY_DIR`, cada setor de `setores.json` (menos o CEO) tem
+  a sua sala no prédio mesmo sem ninguém, com o nome do setor (o renomear vence), e os setores ficam juntos nas
+  primeiras vagas. Sala vazia não vira andar no Habblaud World: lá só conta sala com agente. Cada sala mostra um
+  envelope laranja com os pedidos abertos para o setor (e a Sala do CEO, os pedidos feitos a você).
+
 - **Pedidos entre setores.** Com `HABBLAUD_COMPANY_DIR` (a pasta da empresa), o envelope na barra do topo mostra os
   pedidos que um setor fez a outro (`<pasta>/pedidos/*.json`), abertos primeiro, com o selo dos abertos; um toque
   mostra o texto e as respostas. Com as mensagens liberadas, o CEO também responde por ali (**Aprovar**, **Recusar**,

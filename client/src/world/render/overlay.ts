@@ -184,6 +184,8 @@ export function rationBubbles(items: readonly { room: string; prio: number; chan
 }
 
 export class Overlay {
+  /** Pedidos abertos por sala (envelope no canto da sala; WorldApi.setRoomBadges). Mesmo Map entre recriações. */
+  badges: ReadonlyMap<string, number> = new Map();
   private widths = new Map<string, number>();
   private fitted = new Map<string, string>();
   private placed: number[] = [];
@@ -307,6 +309,7 @@ export class Overlay {
     // placas e pílulas primeiro: são fixas e grandes; balões e etiquetas desviam delas
     this.drawRoomTexts(now, zoom);
     this.drawFxBanners(now, zoom);
+    this.drawRoomBadges();
 
     // ---- coleta balões e etiquetas dos personagens visíveis
     const items = this.items;
@@ -443,6 +446,42 @@ export class Overlay {
       } else if (CORE_NAMES[vis.id]) {
         this.drawCorePill(CORE_NAMES[vis.id], cx, cy, colW - 8);
       }
+    }
+  }
+
+  /** Envelope com o número de pedidos abertos no canto de cima, à direita, de cada sala que tem. */
+  private drawRoomBadges(): void {
+    if (!this.badges.size) return;
+    const { ctx, camera } = this;
+    for (const [id, n] of this.badges) {
+      if (n <= 0) continue;
+      const vis = this.renderer.areas.get(id);
+      if (!vis || (vis.room && (!vis.room.present || vis.room.ghost))) continue;
+      const r = vis.layout.rect;
+      const right = this.sx((r.x + r.w - 0.6) * TILE);
+      const top = this.sy((r.y + 2.2) * TILE);
+      if (right < -60 || right > camera.viewW + 60 || top < -30 || top > camera.viewH + 30) continue;
+      const text = `✉ ${n > 99 ? '99+' : n}`;
+      const w = Math.round(this.measure(LABEL_FONT, text) + 14);
+      const h = 20;
+      const x = Math.round(right - w);
+      const y = Math.round(top);
+      ctx.save();
+      ctx.fillStyle = 'rgba(16,20,32,0.35)';
+      ctx.beginPath();
+      ctx.roundRect(x, y + 2, w, h, 10);
+      ctx.fill();
+      ctx.fillStyle = '#ffb547';
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, 10);
+      ctx.fill();
+      ctx.fillStyle = '#1b1405';
+      ctx.font = LABEL_FONT;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      ctx.fillText(text, x + w / 2, y + h / 2 + 0.5);
+      ctx.restore();
+      this.place(x, y, w, h);
     }
   }
 

@@ -48,6 +48,7 @@ import { recentFolders } from './spawn/folders';
 import { isDemoId } from '../shared/timeline';
 import { DictationService } from './dictation/dictation';
 import { createWhisperTranscriber, findWhisper } from './dictation/whisper';
+import { companySectorRooms } from './company/requests';
 import { DeliveryIndex } from './deliveries/deliveries';
 import { FileFetcher } from './deliveries/fetcher';
 import { WorldClient } from './world/client';
@@ -120,6 +121,8 @@ const accounts = new AccountsService({
 const office = new Office({
   names,
   roomAlias: (path) => roomAliases.get(path),
+  // Os setores da empresa (HABBLAUD_COMPANY_DIR/setores.json, menos o CEO): salas fixas no prédio.
+  pinnedRooms: config.companyDir ? companySectorRooms(config.companyDir) : undefined,
   version: config.version,
   // No modo dev o Vite serve o cliente direto do código-fonte: não há build para comparar.
   build: config.dev ? undefined : createBuildReader(config.rootDir),

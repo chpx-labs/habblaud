@@ -797,3 +797,54 @@ describe('Office: personagem do projeto', () => {
     expect(names.character('/p/api')?.owner).toBe('s2b');
   });
 });
+
+describe('salas fixas dos setores (pinnedRooms)', () => {
+  it('ficam no prédio vazias, com o nome do setor, e não saem quando o agente vai embora', () => {
+    let clock = 1_000_000;
+    const office = new Office({
+      names: new NameStore(null),
+      version: 't',
+      startedAt: clock,
+      accounts: () => [],
+      sources: () => [],
+      accountName: () => 'Conta C',
+      now: () => clock,
+      pinnedRooms: [{ path: '/empresa/marketing', name: 'Marketing' }],
+    });
+    let snap = office.commit().snapshot;
+    expect(snap.rooms.map((r) => [r.id, r.name, r.pinned, r.sector])).toEqual([['/empresa/marketing', 'Marketing', true, 'marketing']]);
+    office.addMain({ id: 'acc:1', account: 'acc', sessionId: 's1', cwd: '/empresa/marketing', role: 'x', startedAt: clock, status: 'working' });
+    office.addMain({ id: 'acc:2', account: 'acc', sessionId: 's2', cwd: '/p/outro', role: 'x', startedAt: clock, status: 'working' });
+    snap = office.commit().snapshot;
+    expect(snap.rooms.map((r) => r.id).sort()).toEqual(['/empresa/marketing', '/p/outro']);
+    office.closeMain('acc:1');
+    office.closeMain('acc:2');
+    clock += OFFLINE_GRACE_MS + 1;
+    office.tick();
+    snap = office.commit().snapshot;
+    expect(snap.agents).toEqual([]);
+    expect(snap.rooms.map((r) => r.id)).toEqual(['/empresa/marketing']);
+  });
+});
+
+describe('salas fixas: organograma', () => {
+  it('ao subir, os setores pegam as primeiras vagas, juntos, mesmo com outra sala aberta antes', () => {
+    const clock = 1_000_000;
+    const office = new Office({
+      names: new NameStore(null),
+      version: 't',
+      startedAt: clock,
+      accounts: () => [],
+      sources: () => [],
+      accountName: () => 'Conta C',
+      now: () => clock,
+      pinnedRooms: [
+        { path: '/empresa/a', name: 'A' },
+        { path: '/empresa/b', name: 'B' },
+      ],
+    });
+    office.addMain({ id: 'acc:1', account: 'acc', sessionId: 's1', cwd: '/p/outro', role: 'x', startedAt: clock, status: 'working' });
+    const slots = Object.fromEntries(office.commit().snapshot.rooms.map((r) => [r.id, r.slot]));
+    expect(slots).toEqual({ '/empresa/a': 0, '/empresa/b': 1, '/p/outro': 2 });
+  });
+});

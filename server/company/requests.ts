@@ -3,6 +3,7 @@
 // Pedidos da página (GET /api/company/requests). Os nomes dos setores vêm de <pasta>/setores.json ({slug: nome}),
 // quando existe. Arquivo estragado ou fora do formato fica de fora.
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tr } from '../../shared/i18n';
 
@@ -200,4 +201,29 @@ export async function createAsCeo(dir: string, req: CeoRequest, now = new Date()
 export function ceoMessage(kind: 'reply' | 'new', r: CompanyRequest, text: string, toolCmd = 'node C:/empresa/bin/pedido.mjs'): string {
   if (kind === 'new') return `📨 Pedido novo do CEO (${r.id}): ${r.title}\n\n${r.text}\n\nQuando puder, trate e responda com: ${toolCmd} responder ${r.id} "<resposta>" --status feito`;
   return `📬 Resposta do CEO ao pedido ${r.id} ("${r.title}") [${r.status}]:\n\n${text || '(sem comentário)'}\n\n(Siga o seu trabalho com isso; para ver tudo: ${toolCmd} ver ${r.id})`;
+}
+
+/**
+ * Salas fixas dos setores: <pasta>/<slug> para cada setor de setores.json (menos o CEO, que tem a sala dele), só os
+ * que existem como pasta. Lido uma vez ao subir o servidor (mudou setores.json: reinicie).
+ */
+export function companySectorRooms(dir: string): { path: string; name: string }[] {
+  let raw: Record<string, unknown> = {};
+  try {
+    raw = JSON.parse(readFileSync(join(dir, 'setores.json'), 'utf8')) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+  const out: { path: string; name: string }[] = [];
+  for (const [slug, name] of Object.entries(raw)) {
+    if (slug === 'ceo' || !SLUG.test(slug) || typeof name !== 'string') continue;
+    const path = join(dir, slug);
+    try {
+      if (!statSync(path).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+    out.push({ path, name: name.slice(0, 60) });
+  }
+  return out;
 }

@@ -56,6 +56,11 @@ export interface OfficeDeps {
   names: NameStore;
   /** Nome escolhido pelo usuário para a sala da pasta (model/room-aliases.ts), se houver. */
   roomAlias?: (path: string) => string | undefined;
+  /**
+   * Salas fixas (os setores da empresa, HABBLAUD_COMPANY_DIR): ficam no prédio mesmo sem ninguém, com o nome do setor
+   * (o renomear do usuário vence). Sala vazia não vira andar no Habblaud World: lá só conta sala com agente.
+   */
+  pinnedRooms?: readonly { path: string; name: string }[];
   version: string;
   /** Build do cliente servido (ver OfficeSnapshot.meta.build); ausente no modo dev e nos testes. */
   build?: () => string | undefined;
@@ -930,6 +935,7 @@ export class Office {
     if (this.effects.prune(now)) this.markDirty();
     if (removed) {
       const occupied = new Set([...this.agents.values()].map((r) => r.info.roomId));
+      for (const p of this.deps.pinnedRooms ?? []) occupied.add(p.path);
       for (const id of [...this.rooms.keys()]) if (!occupied.has(id)) this.rooms.delete(id);
       this.recomputeRoomNames();
       this.markDirty();
@@ -953,18 +959,26 @@ export class Office {
 
   private build(): OfficeSnapshot {
     const now = this.now();
-    const entries = new Map(this.rooms);
+    this.ensurePinned(now);
+    // Setores primeiro: ao subir o servidor, as salas fixas pegam as primeiras vagas, juntas (o organograma).
+    const pinnedPaths = new Set((this.deps.pinnedRooms ?? []).map((p) => p.path));
+    const entries = new Map([...this.rooms].sort(([a], [b]) => Number(pinnedPaths.has(b)) - Number(pinnedPaths.has(a))));
     for (const r of this.demoSnap?.rooms ?? []) entries.set(r.id, { path: r.path, createdAt: r.createdAt });
     this.slots.sync(entries.keys(), now);
+    const pinned = new Map((this.deps.pinnedRooms ?? []).map((p) => [p.path, p]));
     const rooms: RoomInfo[] = [...entries]
-      .map(([id, r]) => ({
-        id,
-        name: this.roomName(id),
-        path: r.path,
-        slot: this.slots.slotOf(id) ?? 0,
-        seed: hash32(id),
-        createdAt: r.createdAt,
-      }))
+      .map(([id, r]): RoomInfo => {
+        const pin = pinned.get(id);
+        return {
+          id,
+          name: this.roomName(id),
+          path: r.path,
+          slot: this.slots.slotOf(id) ?? 0,
+          seed: hash32(id),
+          createdAt: r.createdAt,
+          ...(pin ? { pinned: true, sector: pin.path.split(/[\\/]/).filter(Boolean).pop() } : {}),
+        };
+      })
       .sort((a, b) => a.slot - b.slot);
     // festa/alarme (eventos do GitHub): das salas reais ou do demo
     for (const room of rooms) {
@@ -1038,6 +1052,17 @@ export class Office {
     return out;
   }
 
+  /** As salas fixas dos setores (sem aviso de "Nova sala": elas sempre estiveram lá). */
+  private ensurePinned(now: number): void {
+    let added = false;
+    for (const p of this.deps.pinnedRooms ?? []) {
+      if (this.rooms.has(p.path)) continue;
+      this.rooms.set(p.path, { path: p.path, createdAt: now });
+      added = true;
+    }
+    if (added) this.recomputeRoomNames();
+  }
+
   private ensureRoom(roomId: string, now: number): void {
     if (this.rooms.has(roomId)) return;
     this.rooms.set(roomId, { path: roomId, createdAt: now });
@@ -1049,8 +1074,9 @@ export class Office {
     const paths = new Map([...this.rooms].map(([id, r]) => [id, r.path]));
     for (const r of this.demoSnap?.rooms ?? []) paths.set(r.id, r.path);
     this.roomNames = roomDisplayNames(paths);
+    const pinned = new Map((this.deps.pinnedRooms ?? []).map((p) => [p.path, p.name]));
     for (const [id, path] of paths) {
-      const alias = this.deps.roomAlias?.(path);
+      const alias = this.deps.roomAlias?.(path) ?? pinned.get(path);
       if (alias) this.roomNames.set(id, alias);
     }
   }

@@ -68,6 +68,9 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
   let sim = new Sim(art, () => options, undefined, { visit: visitMode });
   let renderer = new Renderer(canvas, art, sim, camera);
   let overlay = new Overlay(renderer.ctx, sim, renderer, camera);
+  /** Pedidos abertos por sala (setRoomBadges): o overlay recriado recebe o mesmo Map. */
+  const roomBadges = new Map<string, number>();
+  overlay.badges = roomBadges;
   let assets: WorldAssets | null = null;
   /** Timelapse ligado: relógio próprio do mundo (`worldNow`), acelerado pelo fator de animação. */
   let playback: WorldPlayback | null = null;
@@ -426,6 +429,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
       renderer.clock = () => p.clock();
     }
     overlay = new Overlay(renderer.ctx, sim, renderer, camera);
+    overlay.badges = roomBadges;
     debug = createDebug(sim, renderer, camera, markMoved);
     cues = new SoundCues(sim, camera);
     lastCols = -1;
@@ -528,6 +532,10 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     },
     get debug() {
       return debug;
+    },
+    setRoomBadges: (badges) => {
+      roomBadges.clear();
+      for (const [id, n] of badges) if (n > 0) roomBadges.set(id, n);
     },
     ceo: {
       set: (me) => {

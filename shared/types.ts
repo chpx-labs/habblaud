@@ -207,6 +207,10 @@ export interface RoomInfo {
   createdAt: number;
   /** Efeito visual temporário na sala (eventos do GitHub detectados nos transcripts; ver shared/github.ts). */
   effect?: RoomEffect;
+  /** (Opcional, aditivo) Sala fixa de um setor da empresa (HABBLAUD_COMPANY_DIR): fica no prédio mesmo vazia. */
+  pinned?: boolean;
+  /** (Opcional, aditivo) Slug do setor da empresa (o nome da pasta), para os pedidos entre setores. */
+  sector?: string;
 }
 
 /**

@@ -127,6 +127,8 @@ export interface WorldApi {
    * snapshot do store é aplicado como carga inicial.
    */
   setPlayback?(p: WorldPlayback | null): void;
+  /** (Opcional, aditivo) Pedidos abertos por sala (id da sala, ou 'core:ceo'): um envelope com o número no canto. */
+  setRoomBadges?(badges: ReadonlyMap<string, number>): void;
   /** (Opcional, aditivo) Sons do ambiente: teclado de quem trabalha à vista, elevador, rodas. */
   onSound?(cb: (cue: SoundCue) => void): () => void;
   /**

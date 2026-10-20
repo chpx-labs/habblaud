@@ -21,7 +21,10 @@ import {
   chooseSeat,
   idleSitMs,
   isLastInRoom,
+  IDLE_WEIGHTS,
   isLongIdle,
+  longIdleMs,
+  mayLeaveRoom,
   modeFor,
   pickIdleActivity,
   shouldRun,
@@ -460,7 +463,8 @@ export class Sim {
       !!home &&
       roomsSeated.has(ch.roomId) &&
       now - ch.info.statusSince >= INITIAL_LOUNGE_MIN_IDLE_MS &&
-      !isLongIdle(ch.info.status, ch.info.statusSince, now) &&
+      !this.longIdle(ch, now) &&
+      this.mayLeaveRoom(ch, now) &&
       ch.rng() < INITIAL_LOUNGE_SHARE;
     if (relaxing) {
       const seat = this.randomFree(INITIAL_LOUNGE_SEATS, ch);
@@ -1482,8 +1486,11 @@ export class Sim {
     const rng = ch.rng;
     const persona = personaFor(ch.info.seed);
     // colegas à toa: a vontade é de companhia (a personalidade dosa) — TV, jogo, papo, aposta...
-    if (this.social.hasCompany(ch, now) && rng() < 0.45 + persona.sociability * 0.4 && this.social.tryInitiate(ch, now, false)) return true;
-    const avail: Partial<Record<IdleActivity, boolean>> = {
+    const free = this.mayLeaveRoom(ch, now);
+    if (free && this.social.hasCompany(ch, now) && rng() < 0.45 + persona.sociability * 0.4 && this.social.tryInitiate(ch, now, false)) return true;
+    // Preso na sala ("Ociosos ficam na sala"): só se espreguiça no lugar.
+    const stayAvail = Object.fromEntries((Object.keys(IDLE_WEIGHTS) as IdleActivity[]).map((k) => [k, k === 'stretch'])) as Record<IdleActivity, boolean>;
+    const avail: Partial<Record<IdleActivity, boolean>> = !free ? stayAvail : {
       coffee: !!this.spots.findFree('coffee', { by: ch.id }),
       water: !!this.spots.findFree('water', { by: ch.id }),
       bathroom: !!this.spots.findFree('stall', { by: ch.id }),
@@ -1718,7 +1725,12 @@ export class Sim {
 
   /** Ocioso há muito tempo (cochila na mesa, nem sempre aceita convite)? Na visita, nunca: o tempo não veio do mundo. */
   longIdle(ch: Character, now: number): boolean {
-    return !this.visit && isLongIdle(ch.info.status, ch.info.statusSince, now);
+    return !this.visit && isLongIdle(ch.info.status, ch.info.statusSince, now, longIdleMs(this.options().stayInRoom));
+  }
+
+  /** Pode sair da própria sala agora (passeio, roda)? Na visita, sempre: o tempo não veio do mundo. */
+  mayLeaveRoom(ch: Character, now: number): boolean {
+    return !!this.visit || mayLeaveRoom(ch.info.status, ch.info.statusSince, now, this.options().stayInRoom);
   }
 
   /** Os personagens desenhados: os agentes e, na visita, o visitante (por último). */

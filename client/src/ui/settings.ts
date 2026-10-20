@@ -87,6 +87,7 @@ export class SettingsPopover implements UiComponent {
   private switches = new Map<BoolPref | 'demo', SwitchRefs>();
   private bubbles: ReturnType<typeof segmented<UiPrefs['bubbles']>>;
   private liveliness: ReturnType<typeof segmented<UiPrefs['liveliness']>>;
+  private stayInRoom: ReturnType<typeof segmented<'stay' | 'free'>>;
   private daylight: ReturnType<typeof segmented<UiPrefs['daylight']>>;
   private theme: ReturnType<typeof segmented<UiPrefs['theme']>>;
   private language: ReturnType<typeof segmented<LanguageChoice>>;
@@ -130,6 +131,14 @@ export class SettingsPopover implements UiComponent {
         ['lively', tr('Agitado')],
       ],
       (v) => ctx.updatePrefs({ liveliness: v }),
+    );
+    this.stayInRoom = segmented<'stay' | 'free'>(
+      tr('Ociosos saem da sala'),
+      [
+        ['stay', tr('Após 15 min parados')],
+        ['free', tr('Logo')],
+      ],
+      (v) => ctx.updatePrefs({ stayInRoom: v === 'stay' }),
     );
     this.daylight = segmented<UiPrefs['daylight']>(
       tr('Ciclo dia/noite'),
@@ -204,6 +213,7 @@ export class SettingsPopover implements UiComponent {
         sw('showNames', tr('Mostrar nomes'), tr('Etiqueta com o nome acima de cada personagem.'), flip('showNames')),
         this.bubbles.row,
         this.liveliness.row,
+        this.stayInRoom.row,
         this.daylight.row,
       ),
       h(
@@ -283,6 +293,7 @@ export class SettingsPopover implements UiComponent {
     }
     this.bubbles.set(p.bubbles);
     this.liveliness.set(p.liveliness);
+    this.stayInRoom.set(p.stayInRoom ? 'stay' : 'free');
     this.daylight.set(p.daylight);
     this.theme.set(p.theme);
     this.language.set(savedLanguage());

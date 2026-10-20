@@ -3357,4 +3357,8 @@ export const FR: Readonly<Record<string, string>> = {
   "falas demais ao mesmo tempo": "trop de phrases en même temps",
   "a OpenAI não respondeu": "OpenAI n'a pas répondu",
   "a OpenAI recusou ({0}){1}": "OpenAI a refusé ({0}){1}",
+  // client/src/ui/settings.ts (ociosos ficam na sala)
+  "Ociosos saem da sala": "Les agents inactifs quittent la salle",
+  "Após 15 min parados": "Après 15 min d'inactivité",
+  "Logo": "Tout de suite",
 };

@@ -87,7 +87,8 @@ function run(sim: Sim, clock: { now: number }, seconds: number, until?: () => bo
 }
 
 function newSim(): Sim {
-  return new Sim(art, () => ({ ...DEFAULT_WORLD_OPTIONS, liveliness: 'lively' }));
+  // Rodas a qualquer hora (sem a trava 'Ociosos ficam na sala', testada em sim/stay-in-room.test.ts).
+  return new Sim(art, () => ({ ...DEFAULT_WORLD_OPTIONS, liveliness: 'lively', stayInRoom: false }));
 }
 
 const ROOMS = [room('/a', 0), room('/b', 1)];
@@ -102,6 +103,34 @@ describe('vida social', () => {
     expect(grouped).toBe(true);
     const g = [...sim.social.gatherings].find((x) => x.phase === 'run')!;
     for (const m of active(g)) expect(sim.chars.get(m.id)!.gathering).toBe(g);
+  });
+
+  it('ociosos ficam na sala: nada de roda nem passeio antes de 15 min parados; depois, roda', () => {
+    const sim = new Sim(art, () => ({ ...DEFAULT_WORLD_OPTIONS, liveliness: 'lively', stayInRoom: true }));
+    const clock = { now: T0 };
+    // Parados há 1 min: ficam na sala (no máximo se espreguiçam na mesa).
+    const fresh = (id: string, r: string) => agent(id, r, 'idle', { statusSince: clock.now - 60_000 });
+    sim.applySnapshot(snap(ROOMS, [fresh('ana', '/a'), fresh('caio', '/b')]), clock.now);
+    for (let i = 0; i < 240; i++) {
+      run(sim, clock, 1);
+      expect(sim.social.gatherings.size).toBe(0);
+      for (const id of ['ana', 'caio']) {
+        const ch = sim.chars.get(id)!;
+        expect(ch.atSpot === null || ch.atSpot === ch.homeSpot).toBe(true);
+      }
+    }
+    // Parados há 16 min: já podem sair (passeios e, cedo ou tarde, uma roda).
+    const old = (id: string, r: string) => agent(id, r, 'idle', { statusSince: clock.now - 16 * 60_000 });
+    sim.applySnapshot(snap(ROOMS, [old('ana', '/a'), old('caio', '/b')], 2), clock.now);
+    let grouped = false;
+    let left = false;
+    run(sim, clock, 900, () => {
+      left ||= ['ana', 'caio'].some((id) => sim.chars.get(id)!.atSpot === null);
+      grouped = [...sim.social.gatherings].some((g) => g.phase === 'run' && active(g).length >= 2);
+      return grouped;
+    });
+    expect(left).toBe(true);
+    expect(grouped).toBe(true);
   });
 
   it('sozinho no escritório, ninguém começa uma roda de grupo (só o espelho, que vale sozinho)', () => {

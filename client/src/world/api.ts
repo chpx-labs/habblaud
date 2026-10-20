@@ -11,6 +11,11 @@ export interface WorldOptions {
   bubbles: 'all' | 'important' | 'none';
   /** Frequência de passeios pelo escritório quando os agentes estão ociosos. */
   liveliness: 'calm' | 'normal' | 'lively';
+  /**
+   * (Opcional, aditivo) Ociosos ficam na própria sala e só saem (passeio, rodas) depois de 15 min sem atividade
+   * (sim/behavior.ts, STAY_IN_ROOM_MS). Desligado: saem logo, como sempre.
+   */
+  stayInRoom?: boolean;
   /** Câmera acompanha o agente selecionado. */
   followSelected: boolean;
   /** Ciclo dia/noite pela hora local (janelas, iluminação). */
@@ -152,6 +157,7 @@ export const DEFAULT_WORLD_OPTIONS: WorldOptions = {
   showNames: true,
   bubbles: 'important',
   liveliness: 'normal',
+  stayInRoom: true,
   followSelected: false,
   dayNight: true,
   theme: 'auto',

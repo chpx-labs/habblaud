@@ -116,8 +116,25 @@ export function idleSitMs(rng: () => number, liveliness: WorldOptions['livelines
 /** Ocioso há mais que isso: cochila na mesa e para de passear. */
 export const LONG_IDLE_MS = 10 * 60_000;
 
-export function isLongIdle(status: AgentStatus, statusSince: number, now: number): boolean {
-  return status === 'idle' && now - statusSince > LONG_IDLE_MS;
+/** "Ociosos ficam na sala" (WorldOptions.stayInRoom): só saem da sala depois disto sem atividade. */
+export const STAY_IN_ROOM_MS = 15 * 60_000;
+
+/**
+ * Pode sair da própria sala (passeio, roda)? Sem a trava, sempre. Com ela, só quem está sem atividade (ocioso ou
+ * concluído) há STAY_IN_ROOM_MS: trabalhando, esperando você ou esperando um comando, fica na sala.
+ */
+export function mayLeaveRoom(status: AgentStatus, statusSince: number, now: number, stayInRoom: boolean | undefined): boolean {
+  if (!stayInRoom) return true;
+  return (status === 'idle' || status === 'done') && now - statusSince >= STAY_IN_ROOM_MS;
+}
+
+/** Quando o ocioso começa a cochilar: com a trava, LONG_IDLE_MS depois de poder sair (senão nunca passearia). */
+export function longIdleMs(stayInRoom: boolean | undefined): number {
+  return stayInRoom ? STAY_IN_ROOM_MS + LONG_IDLE_MS : LONG_IDLE_MS;
+}
+
+export function isLongIdle(status: AgentStatus, statusSince: number, now: number, afterMs = LONG_IDLE_MS): boolean {
+  return status === 'idle' && now - statusSince > afterMs;
 }
 
 /**

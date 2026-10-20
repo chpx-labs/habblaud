@@ -111,6 +111,8 @@ export class Social {
     if (!c.homeSpot || c.atSpot !== c.homeSpot) return false;
     if (now < c.reactUntil) return false;
     if (c.mode === 'shell' && (!c.shellSince || now - c.shellSince < SHELL_SOCIAL_MIN_MS)) return false;
+    // "Ociosos ficam na sala": a roda é fora da sala, só para quem já pode sair.
+    if (!this.sim.mayLeaveRoom(c, now)) return false;
     return true;
   }
 

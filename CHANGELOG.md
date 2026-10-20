@@ -24,6 +24,10 @@ do meio (0.**3**.0).
   agente da ligação; **Voz: Natural / Do navegador** escolhe. Se a OpenAI falhar, a fala sai na voz do navegador. O
   servidor lê a chave uma vez e a apaga do próprio ambiente, para os agentes que ele abre não a herdarem. Só o texto
   das respostas vai para a OpenAI; a sua voz continua no Whisper local.
+- **Ociosos ficam na sala:** os agentes só saem da própria sala (passeios, café, rodas) depois de 15 minutos sem
+  atividade; antes disso ficam na mesa e no máximo se espreguiçam. Trabalhando, esperando você ou esperando um
+  comando, nunca saem. O cochilo passa para 25 minutos parados. Configurações › **Ociosos saem da sala: Após 15 min
+  parados / Logo** (Logo é o comportamento de antes).
 - **Ditado num idioma só:** com `HABBLAUD_DICTATION_LANGS` de um idioma (ex.: `pt`), o Whisper transcreve direto
   nele, sem detectar a língua: mais rápido, e frases curtas não viram inglês.
 

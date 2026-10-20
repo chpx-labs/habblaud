@@ -1745,19 +1745,35 @@ export class Sim {
   }
 
   /** Visita: o visitante surge no elevador da recepção e sai para o hall (null = tira o visitante). */
-  setVisitor(info: AgentInfo | null, now: number): Character | null {
+  /** Crachá do personagem controlado (padrão: VISITANTE; o CEO do próprio escritório mostra CEO). */
+  visitorBadge: string | undefined;
+
+  /**
+   * Personagem controlado: o visitante (cena Visita, chega pelo elevador) ou, com `opts.at`, o CEO do próprio
+   * escritório, que aparece direto num tile (a sala dele) com o cordão e o crachá próprios.
+   */
+  setVisitor(info: AgentInfo | null, now: number, opts: { at?: { tx: number; ty: number; dir?: Dir }; lanyard?: string; badge?: string } = {}): Character | null {
     const old = this.visitor;
+    this.visitorBadge = opts.badge;
     if (old) for (const e of this.elevators) e.release(old.id, now);
     this.visitor = null;
     this.visitorIntent = { ...NO_INTENT };
     if (!info) return null;
     let appearance;
     try {
-      appearance = { ...this.art.appearanceFromSeed(info.seed, { look: info.look, sub: false, parts: info.parts }), lanyard: VISITOR_LANYARD };
+      appearance = { ...this.art.appearanceFromSeed(info.seed, { look: info.look, sub: false, parts: info.parts }), lanyard: opts.lanyard ?? VISITOR_LANYARD };
     } catch {
       return null;
     }
     const ch = new Character(info, appearance);
+    if (opts.at) {
+      // O CEO: já está na sala dele, sem elevador.
+      ch.placeAtTile(opts.at.tx, opts.at.ty);
+      ch.dir = opts.at.dir ?? 'down';
+      ch.alpha = 1;
+      this.visitor = ch;
+      return ch;
+    }
     const el = this.elevators[0];
     const spot = el ? this.spots.get(el.spotId) : undefined;
     if (!el || !spot) return null;

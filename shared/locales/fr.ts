@@ -3363,4 +3363,13 @@ export const FR: Readonly<Record<string, string>> = {
   "Logo": "Tout de suite",
   "Mostrar tudo ({0} linhas)": "Tout afficher ({0} lignes)",
   "{0} (última resposta)": "{0} (dernière réponse)",
+  // sala do CEO e o personagem controlado
+  "Você": "Vous",
+  "Controlar o CEO (G)": "Contrôler le PDG (G)",
+  "Controlando o CEO: setas/WASD ou clique no chão (Shift corre). G solta.": "Vous contrôlez le PDG : flèches/WASD ou clic au sol (Maj pour courir). G pour lâcher.",
+  "CEO solto: setas/WASD voltam a mover a câmera.": "PDG lâché : flèches/WASD déplacent à nouveau la caméra.",
+  "Soltar o CEO (G)": "Lâcher le PDG (G)",
+  "Controlar o CEO (setas/WASD e clique no chão movem ele; Shift corre) ou soltá-lo": "Contrôler le PDG (flèches/WASD et clic au sol le déplacent ; Maj pour courir) ou le lâcher",
+  "CEO": "PDG",
+  "Sala do CEO": "Bureau du PDG",
 };

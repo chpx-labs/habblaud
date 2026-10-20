@@ -194,7 +194,10 @@ export class Renderer {
     this.shellWindows = [];
     for (let col = CORE_COLS; col < cols; col++) {
       for (const side of ['north', 'south'] as const) {
-        const sh = slotShell(slotAt(col, side), col === cols - 1);
+        const slot = slotAt(col, side);
+        // Célula reservada (sala do CEO, layout/ceo.ts): é área fixa, sem jardim de vaga vazia por baixo.
+        if (slot < 0) continue;
+        const sh = slotShell(slot, col === cols - 1);
         this.shells.push(sh);
         paintShell(this.art, ctx, sh.floors, sh.walls);
         for (const w of sh.windows) this.shellWindows.push(toWallVis(w, `shell:${sh.slot}`));

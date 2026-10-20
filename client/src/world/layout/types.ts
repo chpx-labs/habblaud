@@ -2,7 +2,7 @@
 // que o render transforma em pixels e a simulação usa para caminhos e pontos de interesse.
 import type { Dir, FloorKind, FurnitureKind, WallStyle } from '../../art/api';
 
-export type AreaKind = 'reception' | 'restroom' | 'cafe' | 'lounge' | 'room' | 'corridor';
+export type AreaKind = 'reception' | 'restroom' | 'cafe' | 'lounge' | 'room' | 'corridor' | 'ceo';
 
 /** Retângulo em tiles (coordenadas absolutas do mundo). */
 export interface TileRect {

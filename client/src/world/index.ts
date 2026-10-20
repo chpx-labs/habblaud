@@ -9,9 +9,16 @@ import { Camera, overviewFrame } from './camera';
 import { createDebug, type WorldDebug } from './debug';
 import { BUILDING_H, COL_W } from './constants';
 import { RECEPTION_ID } from './layout/core';
+import { CEO_ROOM_ID } from './layout/ceo';
+import type { CeoMe, CeoWorld } from './api';
+import { ceoRect } from './layout/geometry';
 import { inRect } from './layout/geometry';
 import { attachInput, type Hit } from './input';
 import type { AgentInfo } from '../../../shared/types';
+import { tr } from '../../../shared/i18n';
+
+/** Cordão e crachá do CEO (dourado, como o friso da sala dele). */
+const CEO_LANYARD = '#c9a227';
 import { rebaseSnapshot } from './playback';
 import { Overlay } from './render/overlay';
 import { Renderer } from './render/renderer';
@@ -50,9 +57,12 @@ export interface CreateWorldOptions {
   visit?: boolean;
 }
 
-export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: CreateWorldOptions = {}): WorldApi & { debug: WorldDebug; visit: VisitWorld } {
+export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: CreateWorldOptions = {}): WorldApi & { debug: WorldDebug; visit: VisitWorld; ceo: CeoWorld } {
   let options: WorldOptions = { ...DEFAULT_WORLD_OPTIONS };
   const visitMode = !!o.visit;
+  /** CEO no próprio escritório (nunca na Visita, onde o personagem controlado é o visitante). */
+  let ceoMe: CeoMe | null = null;
+  let ceoControl = false;
   const camera = new Camera();
   // Simulação e desenho são recriados quando o timelapse entra, pula ou sai (rebuild).
   let sim = new Sim(art, () => options, undefined, { visit: visitMode });
@@ -214,6 +224,19 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     const w = camera.screenToWorld(at.x, at.y);
     if (sim.visitorWalkTo(Math.floor(w.x / TILE), Math.floor(w.y / TILE))) followVisitor();
   };
+  /** Põe (de novo) o CEO na sala dele: ao definir, ao trocar a aparência e depois que a simulação é recriada. */
+  const placeCeo = () => {
+    if (visitMode) return;
+    if (!ceoMe) {
+      sim.setVisitor(null, Date.now());
+      return;
+    }
+    const now = Date.now();
+    const room = ceoRect();
+    const info = { ...visitorInfo(ceoMe, now), roomId: CEO_ROOM_ID, role: tr('CEO'), seed: ceoMe.seed };
+    // De pé diante da mesa de diretor, de frente para ela.
+    sim.setVisitor(info, now, { at: { tx: room.x + 7, ty: room.y + 8, dir: 'up' }, lanyard: CEO_LANYARD, badge: 'CEO' });
+  };
   const followVisitor = () => {
     if (!sim.visitor) return;
     userMoved = true;
@@ -222,7 +245,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
 
   const detachInput = attachInput(canvas, camera, {
     pick,
-    click: (hit, at) => (visitMode ? visitClick(hit, at) : setSelection(hit)),
+    click: (hit, at) => (visitMode || (ceoControl && sim.visitor) ? visitClick(hit, at) : setSelection(hit)),
     doubleClick: (hit) => {
       if (hit?.type === 'agent') {
         setSelection(hit);
@@ -241,7 +264,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     overview: () => overview(true),
     zoomStep,
     active: () => !suspended,
-    keys: () => !visitMode,
+    keys: () => !visitMode && !ceoControl,
   });
 
   // ------------------------------------------------------------------ dados
@@ -301,7 +324,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
         } else if (!userMoved) overview(true);
       }
       // visita: andando pelo teclado, a câmera vai junto
-      if (visitMode && sim.visitor && (sim.visitorIntent.dx || sim.visitorIntent.dy) && camera.follow !== VISITOR_ID) followVisitor();
+      if ((visitMode || ceoControl) && sim.visitor && (sim.visitorIntent.dx || sim.visitorIntent.dy) && camera.follow !== VISITOR_ID) followVisitor();
       const followCh = camera.follow ? sim.person(camera.follow) : undefined;
       if (camera.follow && !followCh) camera.follow = null;
       camera.update(real, followCh ? camera.centerFor(followCh.x, followCh.y - 12, camera.zoom) : null, realDt);
@@ -383,6 +406,8 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     cues = new SoundCues(sim, camera);
     lastCols = -1;
     setHover(null);
+    // A simulação nova não tem o CEO: põe ele de volta na sala.
+    placeCeo();
   };
 
   return {
@@ -479,6 +504,26 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     },
     get debug() {
       return debug;
+    },
+    ceo: {
+      set: (me) => {
+        ceoMe = me && !visitMode ? { ...me } : null;
+        placeCeo();
+        if (!ceoMe && ceoControl) ceoControl = false;
+      },
+      setControl: (on) => {
+        ceoControl = on && !!ceoMe && !visitMode;
+        sim.visitorIntent = { ...NO_INTENT };
+        if (ceoControl) followVisitor();
+        else if (camera.follow === VISITOR_ID) camera.follow = null;
+      },
+      get control() {
+        return ceoControl;
+      },
+      setIntent: (intent) => {
+        sim.visitorIntent = ceoControl ? { ...intent } : { ...NO_INTENT };
+      },
+      focus: () => followVisitor(),
     },
     visit: {
       setVisitor: (me) => {

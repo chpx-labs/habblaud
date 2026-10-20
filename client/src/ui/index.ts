@@ -33,6 +33,7 @@ import { SoundControl } from './sound';
 import { TERMINAL_UNAVAILABLE_HINT, TerminalPanel } from './terminal';
 import { PtyPanel } from './pty';
 import { CallPanel } from './call';
+import { CeoControl } from './ceo';
 import { TimelapsePlayer } from './timelapse';
 import { Toasts } from './toasts';
 import { UpdateToaster } from './version';
@@ -279,6 +280,9 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi,
   help = new HelpDialog();
   const day = new DayLauncher(ctx, (el) => root.append(el));
   topbar.addPanelButton(day.button);
+  // O CEO: o seu personagem na sala do CEO (botão da gravata, tecla G).
+  const ceo = new CeoControl(ctx);
+  topbar.addPanelButton(ceo.button);
   // Botão direito numa sala (lista lateral ou escritório): renomear.
   const renamer = new RoomRenamer(ctx);
   ctx.renameRoom = (id, at) => renamer.open(id, at);
@@ -301,7 +305,7 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi,
   }));
   drawer.onLayoutChange = () => applyLayout();
 
-  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, pty, call, history, deliveries, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, worldDialog, popups, worldChip];
+  const components: UiComponent[] = [topbar, sidebar, drawer, terminal, pty, call, ceo, history, deliveries, feed, toasts, settings, empty, banner, tip, notifier, splash, timelapse, sound, day, updateToaster, worldDialog, popups, worldChip];
   if (scene) components.push(scene);
   root.append(worldSocial.el);
   components.push(worldSocial);
@@ -458,6 +462,12 @@ export function createUI(root: HTMLElement, store: OfficeStore, world: WorldApi,
       case 'M':
         e.preventDefault();
         day.toggle();
+        break;
+      case 'g':
+      case 'G':
+        // Controlar o CEO (setas/WASD e clique movem ele) ou soltar.
+        e.preventDefault();
+        ceo.toggle();
         break;
       case 'c':
       case 'C': {

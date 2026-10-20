@@ -1,6 +1,7 @@
 // CONTRATO do mundo (canvas do escritório) consumido pela UI (client/src/ui/**).
 // Implementação: client/src/world/index.ts -> createWorld().
 // Regra: mudanças aqui devem ser ADITIVAS.
+import type { AppearanceParts } from '../../../shared/appearance';
 
 export type Selection = { type: 'agent'; id: string } | { type: 'room'; id: string } | null;
 
@@ -58,7 +59,29 @@ export interface SoundCue {
   count?: number;
 }
 
+/** O CEO do próprio escritório (sala do CEO, layout/ceo.ts): o personagem que você controla. */
+export interface CeoMe {
+  name: string;
+  look: 'f' | 'm';
+  seed: number;
+  parts?: AppearanceParts;
+}
+
+export interface CeoWorld {
+  /** Põe o CEO na sala dele (null tira). Também vale para trocar a aparência. */
+  set(me: CeoMe | null): void;
+  /** Controlar o CEO: setas/WASD e o clique no chão movem ele, e a câmera o segue. Desligado: a câmera de sempre. */
+  setControl(on: boolean): void;
+  readonly control: boolean;
+  /** O teclado: para onde o CEO anda (só com o controle ligado). */
+  setIntent(intent: { dx: number; dy: number; run: boolean }): void;
+  /** Leva a câmera até o CEO. */
+  focus(): void;
+}
+
 export interface WorldApi {
+  /** O CEO que você controla (ausente na Visita e nas cenas sem escritório). */
+  ceo?: CeoWorld;
   /** Seleciona (ou limpa) um agente/sala. `focus` move a câmera até ele. */
   select(sel: Selection, opts?: { focus?: boolean }): void;
   getSelection(): Selection;

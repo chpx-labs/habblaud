@@ -493,8 +493,9 @@ describe('salas sem buracos', () => {
     expect(c.lightOn).toBe(true);
     // o endereço antigo esvaziou, apagou e foi desmontado; o prédio voltou a ter uma coluna de salas
     expect(sim.rooms.has(ghost!.id)).toBe(false);
-    run(sim, clock, 10, () => sim.building.cols === 3);
-    expect(sim.building.cols).toBe(3);
+    // (com a sala do CEO, as duas salas que sobram ocupam as colunas 2 e 3: núcleo + 2)
+    run(sim, clock, 10, () => sim.building.cols === 4);
+    expect(sim.building.cols).toBe(4);
     // davi (ocioso, talvez passeando) também tem o lugar dele na sala nova
     expect(c.layout.spots.some((p) => p.id === sim.chars.get('davi')!.homeSpot)).toBe(true);
   });

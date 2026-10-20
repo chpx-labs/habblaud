@@ -22,32 +22,34 @@ function roomsFor(slots: number[]): AreaLayout[] {
 }
 
 describe('mapeamento de slots', () => {
-  it('coluna = núcleo + floor(slot/2); par = norte, ímpar = sul', () => {
+  it('a sala do CEO ocupa o norte da coluna 2; o slot 0 de projeto fica no sul dela e os seguintes alternam', () => {
     expect(slotColumn(0)).toBe(2);
-    expect(slotColumn(1)).toBe(2);
+    expect(slotColumn(1)).toBe(3);
     expect(slotColumn(2)).toBe(3);
-    expect(slotColumn(7)).toBe(5);
-    expect(slotSide(0)).toBe('north');
-    expect(slotSide(1)).toBe('south');
-    expect(slotSide(6)).toBe('north');
-    expect(slotAt(3, 'south')).toBe(3);
+    expect(slotColumn(7)).toBe(6);
+    expect(slotSide(0)).toBe('south');
+    expect(slotSide(1)).toBe('north');
+    expect(slotSide(6)).toBe('south');
+    expect(slotAt(2, 'north')).toBe(-1);
+    expect(slotAt(3, 'south')).toBe(2);
     expect(slotAt(slotColumn(9), slotSide(9))).toBe(9);
   });
 
   it('retângulos das salas não se sobrepõem e respeitam o corredor', () => {
-    const a = slotRect(0);
-    const b = slotRect(1);
-    expect(a).toEqual({ x: 2 * COL_W, y: 0, w: COL_W, h: 12 });
-    expect(b.y).toBe(SOUTH_Y);
+    const a = slotRect(1);
+    const b = slotRect(0);
+    expect(a).toEqual({ x: 3 * COL_W, y: 0, w: COL_W, h: 12 });
+    expect(b).toEqual({ x: 2 * COL_W, y: SOUTH_Y, w: COL_W, h: 12 });
     expect(a.y + a.h).toBe(CORRIDOR_Y);
     expect(b.y + b.h).toBe(BUILDING_H);
   });
 
   it('largura do prédio: núcleo + maior coluna usada + 1 (mínimo 1 coluna de projeto)', () => {
     expect(columnsFor([])).toBe(3);
-    expect(columnsFor([0, 1])).toBe(3);
-    expect(columnsFor([5])).toBe(5);
-    expect(columnsFor([2, 11])).toBe(8);
+    expect(columnsFor([0])).toBe(3);
+    expect(columnsFor([0, 1])).toBe(4);
+    expect(columnsFor([5])).toBe(6);
+    expect(columnsFor([2, 11])).toBe(9);
   });
 });
 
@@ -233,6 +235,7 @@ describe('itens de parede', () => {
   it('passagens nas faces das paredes têm batente', () => {
     const restroom = coreAreas().find((a) => a.kind === 'restroom')!;
     expect(restroom.wallItems.some((w) => w.kind === 'door_frame')).toBe(true);
-    for (const room of roomsFor([1, 3, 7])) expect(room.wallItems.some((w) => w.kind === 'door_frame'), room.id).toBe(true);
+    // salas do lado sul (com a sala do CEO no norte da coluna 2, os slots pares)
+    for (const room of roomsFor([0, 2, 6])) expect(room.wallItems.some((w) => w.kind === 'door_frame'), room.id).toBe(true);
   });
 });

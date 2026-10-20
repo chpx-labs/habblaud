@@ -3346,4 +3346,13 @@ export const EN: Readonly<Record<string, string>> = {
   "Logo": "Right away",
   "Mostrar tudo ({0} linhas)": "Show all ({0} lines)",
   "{0} (última resposta)": "{0} (last answer)",
+  // sala do CEO e o personagem controlado
+  "Você": "You",
+  "Controlar o CEO (G)": "Control the CEO (G)",
+  "Controlando o CEO: setas/WASD ou clique no chão (Shift corre). G solta.": "Controlling the CEO: arrows/WASD or click the floor (Shift runs). G lets go.",
+  "CEO solto: setas/WASD voltam a mover a câmera.": "CEO released: arrows/WASD move the camera again.",
+  "Soltar o CEO (G)": "Let go of the CEO (G)",
+  "Controlar o CEO (setas/WASD e clique no chão movem ele; Shift corre) ou soltá-lo": "Control the CEO (arrows/WASD and clicking the floor move them; Shift runs) or let go",
+  "CEO": "CEO",
+  "Sala do CEO": "CEO office",
 };

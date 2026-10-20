@@ -51,6 +51,7 @@ const CORE_NAMES: Record<string, string> = {
   'core:banheiros': tr('Banheiros'),
   'core:copa': tr('Copa'),
   'core:lounge': tr('Lounge'),
+  'core:ceo': tr('Sala do CEO'),
 };
 
 /** 'shell' = espera de shell: balão escuro de terminal com texto verde. 'say' = fala das rodas (papo, torcida, apostas). */
@@ -875,7 +876,7 @@ export class Overlay {
     const nameW = this.measure(LABEL_FONT, ch.info.name);
     const chipW = acc ? 13 : 0;
     const visitor = ch === this.sim.visitor;
-    const badgeW = visitor ? this.measure(BADGE_FONT, visitorBadge()) + 7 : ch.info.kind === 'sub' && !l.compact ? this.measure(BADGE_FONT, 'SUB') + 7 : 0;
+    const badgeW = visitor ? this.measure(BADGE_FONT, this.sim.visitorBadge ?? visitorBadge()) + 7 : ch.info.kind === 'sub' && !l.compact ? this.measure(BADGE_FONT, 'SUB') + 7 : 0;
     const codexW = ch.info.provider === 'codex' && !l.compact ? this.measure(BADGE_FONT, CODEX_BADGE) + 7 : 0;
     return { nameW, chipW, badgeW, codexW };
   }
@@ -954,7 +955,7 @@ export class Overlay {
       ctx.fill();
       ctx.font = BADGE_FONT;
       ctx.fillStyle = '#2a2000';
-      ctx.fillText(ch === this.sim.visitor ? visitorBadge() : 'SUB', cx + 3.5, y + h / 2 + 0.5);
+      ctx.fillText(ch === this.sim.visitor ? (this.sim.visitorBadge ?? visitorBadge()) : 'SUB', cx + 3.5, y + h / 2 + 0.5);
       cx += badgeW + 3;
     } else if (sub) {
       // selo compacto: pontinho na cor do crachá

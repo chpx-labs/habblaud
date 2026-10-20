@@ -23,6 +23,7 @@ do meio (0.**3**.0).
   - Perto de um agente, uma barrinha sobre o CEO mostra **Falar com Fulano (E)**, que abre a ligação com ele (quem
     não recebe mensagens abre os detalhes). Os agentes acenam 👋 quando o CEO chega perto (uma vez a cada minuto e
     meio).
+  - Clicar no CEO também liga o controle (além da gravata e do `G`).
   - O lápis da barrinha abre o editor do CEO: nome, dica visual, "Sortear" e as peças, como no editor dos agentes.
 
 - **Ligação: converse por voz com os agentes, um ou vários ao mesmo tempo.** O botão **📞 Ligar** (na seção Mandar

@@ -190,6 +190,14 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
 
   // ------------------------------------------------------------------ hit-test
 
+  /** O ponto (px de mundo) está sobre o CEO? */
+  const ceoAt = (w: { x: number; y: number }): boolean => {
+    const h = renderer.heads.get(VISITOR_ID);
+    const slack = Math.max(2, 4 / camera.zoom);
+    return !!h && h.visible && w.x >= h.bx - slack && w.x <= h.bx + h.bw + slack && w.y >= h.by - slack && w.y <= h.by + h.bh + slack;
+  };
+  const ceoClickCbs = new Set<() => void>();
+
   const pick = (sx: number, sy: number): Hit => {
     const w = camera.screenToWorld(sx, sy);
     let best: string | null = null;
@@ -204,6 +212,7 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
       }
     }
     if (best) return { type: 'agent', id: best };
+    if (ceoMe && !visitMode && ceoAt(w)) return { type: 'agent', id: VISITOR_ID };
     const tx = Math.floor(w.x / TILE);
     const ty = Math.floor(w.y / TILE);
     for (const room of sim.rooms.values()) if (room.present && !room.ghost && inRect(room.layout.rect, tx, ty)) return { type: 'room', id: room.id };
@@ -255,8 +264,13 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
 
   const detachInput = attachInput(canvas, camera, {
     pick,
-    click: (hit, at) => (visitMode || (ceoControl && sim.visitor) ? visitClick(hit, at) : setSelection(hit)),
+    click: (hit, at) => {
+      // Clique no CEO: liga o controle (a UI anuncia e mostra a barrinha).
+      if (!visitMode && hit?.type === 'agent' && hit.id === VISITOR_ID) return ceoClickCbs.forEach((cb) => cb());
+      return visitMode || (ceoControl && sim.visitor) ? visitClick(hit, at) : setSelection(hit);
+    },
     doubleClick: (hit) => {
+      if (hit?.type === 'agent' && hit.id === VISITOR_ID) return;
       if (hit?.type === 'agent') {
         setSelection(hit);
         focusAgent(hit.id, { follow: true });
@@ -534,6 +548,10 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
         sim.visitorIntent = ceoControl ? { ...intent } : { ...NO_INTENT };
       },
       focus: () => followVisitor(),
+      onClick: (cb) => {
+        ceoClickCbs.add(cb);
+        return () => void ceoClickCbs.delete(cb);
+      },
       nearby: () => {
         if (!ceoMe || visitMode || !sim.visitor) return { agentId: null, seat: false, seated: false };
         const seated = sim.visitorSeated;

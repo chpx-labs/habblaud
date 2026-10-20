@@ -77,6 +77,8 @@ export interface CeoWorld {
   setIntent(intent: { dx: number; dy: number; run: boolean }): void;
   /** Leva a câmera até o CEO. */
   focus(): void;
+  /** Clique no CEO no escritório. */
+  onClick(cb: () => void): () => void;
   /** O que está ao alcance do CEO: o agente mais perto (para falar) e se há assento para sentar; e se está sentado. */
   nearby(): { agentId: string | null; seat: boolean; seated: boolean };
   /** Senta no assento mais perto ou, sentado, levanta. Devolve se fez algo. */

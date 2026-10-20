@@ -75,6 +75,10 @@ export class CeoControl implements UiComponent {
     if (ceo) {
       this.me = loadCeo();
       ceo.set(this.me);
+      // Clicar no CEO liga o controle.
+      ceo.onClick(() => {
+        if (!this.control) this.toggle(true);
+      });
     } else this.button.hidden = true;
     addEventListener('keydown', (e) => this.onKey(e, true));
     addEventListener('keyup', (e) => this.onKey(e, false));
@@ -117,7 +121,8 @@ export class CeoControl implements UiComponent {
     this.button.classList.toggle('is-on', on);
     this.button.setAttribute('aria-pressed', String(on));
     this.button.title = on ? tr('Soltar o CEO (G)') : tr('Controlar o CEO (G)');
-    if (!on) this.stopLoop();
+    if (on) this.loop();
+    else this.stopLoop();
   }
 
   private apply(me: CeoMe): void {

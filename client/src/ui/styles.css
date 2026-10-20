@@ -11420,12 +11420,6 @@ html.is-replay #world {
   height: 44px;
 }
 
-.ui-call__opts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 14px;
-}
-
 .ui-call__kind-row {
   display: flex;
   align-items: center;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addressedTo, chunks, finalReplyStep, joinReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker } from './call-model';
+import { addressedTo, chunks, finalReplyStep, joinReply, lastFinalReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker } from './call-model';
 
 describe('speakableText', () => {
   it('tira blocos de código, tabelas e links', () => {
@@ -147,5 +147,25 @@ describe('só a resposta final', () => {
     expect(midTurn('working')).toBe(true);
     expect(midTurn('waiting')).toBe(true);
     for (const s of ['idle', 'shell', 'done', 'offline', undefined] as const) expect(midTurn(s)).toBe(false);
+  });
+});
+
+describe('lastFinalReply', () => {
+  const u = (id: string) => ({ kind: 'user', id, text: 'pedido' });
+  const a = (id: string, text: string) => ({ kind: 'assistant', id, text });
+  const t = (id: string) => ({ kind: 'tool', id });
+  const hist = [u('1'), a('2', 'Vou ver.'), t('3'), a('4', 'Resposta 1.'), u('5'), a('6', 'Olhando…'), t('7'), a('8', 'Resposta 2.')];
+
+  it('agente parado: a última resposta é a do fim', () => {
+    expect(joinReply(lastFinalReply(hist, false))).toBe('Resposta 2.');
+  });
+
+  it('agente no meio de uma demanda: a da demanda anterior', () => {
+    expect(joinReply(lastFinalReply(hist, true))).toBe('Resposta 1.');
+  });
+
+  it('sem resposta nenhuma: vazio', () => {
+    expect(lastFinalReply([u('1'), a('2', 'Vou ver.'), t('3')], false)).toEqual([]);
+    expect(lastFinalReply([], false)).toEqual([]);
   });
 });

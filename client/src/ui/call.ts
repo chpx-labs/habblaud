@@ -11,7 +11,7 @@ import { MESSAGE_MAX } from '../../../shared/messages';
 import type { AgentInfo, AgentStatus, TerminalEntry } from '../../../shared/types';
 import { tr } from '../../../shared/i18n';
 import { access } from '../net/access';
-import { addressedTo, chunks, finalReplyStep, joinReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker, type Narrate, type ReplyPart, type VoiceLike } from './call-model';
+import { addressedTo, chunks, finalReplyStep, joinReply, lastFinalReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker, type ReplyPart, type VoiceLike } from './call-model';
 import { composerMode, messageText } from './composer-model';
 import type { CallControl, UiComponent, UiContext } from './context';
 import { DictationButton, dictationAvailable } from './dictation';
@@ -28,24 +28,6 @@ const LOG_MAX = 40;
 const VOICE_KEY = 'habblaud.call.voice';
 /** Voz escolhida: 'natural' (servidor, OpenAI) ou 'browser'. */
 const VOICE_KIND_KEY = 'habblaud.call.voiceKind';
-/** O que a ligação lê: 'final' (só a resposta de cada demanda) ou 'all' (cada texto no caminho). */
-const NARRATE_KEY = 'habblaud.call.narrate';
-
-function readNarrate(): Narrate {
-  try {
-    return localStorage.getItem(NARRATE_KEY) === 'all' ? 'all' : 'final';
-  } catch {
-    return 'final';
-  }
-}
-
-function writeNarrate(n: Narrate): void {
-  try {
-    localStorage.setItem(NARRATE_KEY, n);
-  } catch {
-    // vale só nesta página
-  }
-}
 /** De quanto em quanto tempo pergunta ao servidor se a voz natural existe. */
 const NATURAL_TTL_MS = 60_000;
 
@@ -114,8 +96,10 @@ interface Party {
   seen: Set<string>;
   status: AgentStatus | undefined;
   listening: 'connecting' | 'open' | 'failed';
-  /** Modo 'final': textos da demanda em andamento, guardados até ela terminar (call-model.ts, finalReplyStep). */
+  /** Textos da demanda em andamento, guardados até ela terminar (call-model.ts, finalReplyStep). */
   pending: ReplyPart[];
+  /** A última resposta do histórico já apareceu (só na primeira conexão). */
+  shownLast?: boolean;
 }
 
 type LogKind = 'me' | 'agent' | 'info' | 'error';
@@ -207,9 +191,6 @@ export class CallPanel implements UiComponent, CallControl {
   private unlocked = false;
   private player: HTMLAudioElement = typeof Audio === 'function' ? new Audio() : ({} as HTMLAudioElement);
   private kindRow: HTMLElement;
-  private narrate: Narrate = readNarrate();
-  private narrateSel: HTMLSelectElement;
-  private optsRow: HTMLElement;
   private kindSel: HTMLSelectElement;
 
   private title: HTMLElement;
@@ -279,24 +260,6 @@ export class CallPanel implements UiComponent, CallControl {
       this.stopVoice();
     });
     this.kindRow = h('label', { class: 'ui-call__kind-row', hidden: true }, h('span', { text: tr('Voz:') }), this.kindSel);
-    // Só a resposta final de cada demanda (padrão) ou cada texto do agente no caminho.
-    this.narrateSel = h(
-      'select',
-      { class: 'ui-call__kind', attrs: { 'aria-label': tr('O que a ligação lê') } },
-      h('option', { text: tr('Só a resposta final'), attrs: { value: 'final' } }),
-      h('option', { text: tr('Tudo, passo a passo'), attrs: { value: 'all' } }),
-    );
-    this.narrateSel.value = this.narrate;
-    this.narrateSel.addEventListener('change', () => {
-      this.narrate = this.narrateSel.value === 'all' ? 'all' : 'final';
-      writeNarrate(this.narrate);
-    });
-    this.optsRow = h(
-      'div',
-      { class: 'ui-call__opts' },
-      h('label', { class: 'ui-call__kind-row' }, h('span', { text: tr('Ler:') }), this.narrateSel),
-      this.kindRow,
-    );
 
     this.el = h(
       'section',
@@ -307,7 +270,7 @@ export class CallPanel implements UiComponent, CallControl {
       this.status,
       h('div', { class: 'ui-call__controls' }, this.talk.el, this.voiceBtn, this.repeatBtn),
       this.noMic,
-      this.optsRow,
+      this.kindRow,
       h('div', { class: 'ui-call__type' }, this.input, this.sendBtn),
     );
     this.syncVoiceBtn();
@@ -387,7 +350,7 @@ export class CallPanel implements UiComponent, CallControl {
         this.speak(note, p);
       }
       p.status = a.status;
-      // Modo 'final': a demanda terminou e o texto guardado é a resposta.
+      // A demanda terminou: o texto guardado é a resposta.
       if (p.pending.length && !midTurn(a.status)) this.emitReply(p, p.pending.splice(0));
       p.name = a.name;
     }
@@ -537,6 +500,18 @@ export class CallPanel implements UiComponent, CallControl {
       const data = parseInit((ev as MessageEvent).data);
       // A conversa de antes (ou repetida numa reconexão) só é marcada como vista.
       for (const e of data?.entries ?? []) p.seen.add(e.id);
+      // Ao ligar (não numa reconexão): a última resposta, só na tela, para saber em que pé a conversa está.
+      if (!p.shownLast) {
+        p.shownLast = true;
+        const last = joinReply(lastFinalReply(data?.entries ?? [], midTurn(p.status)));
+        if (last) {
+          const text = speakableText(last);
+          this.addLog({ kind: 'agent', who: tr('{0} (última resposta)', [p.name]), text, md: last });
+          // Repetir lê essa resposta, se você quiser ouvi-la.
+          if (text) this.lastSpoken = { text: withSpeaker(text, p.name, this.parties.size > 1), party: p };
+          this.ctx.invalidate();
+        }
+      }
       p.listening = 'open';
       this.ctx.invalidate();
     });
@@ -559,10 +534,6 @@ export class CallPanel implements UiComponent, CallControl {
     for (const e of entries) {
       if (p.seen.has(e.id)) continue;
       p.seen.add(e.id);
-      if (this.narrate === 'all') {
-        if (e.kind === 'assistant') this.emitReply(p, [{ id: e.id, md: e.text }], many);
-        continue;
-      }
       const step = finalReplyStep(p.pending, e, midTurn(p.status));
       p.pending = step.pending;
       if (step.emit.length) this.emitReply(p, step.emit, many);
@@ -815,7 +786,9 @@ export class CallPanel implements UiComponent, CallControl {
     else li.append(document.createTextNode(line.text));
     this.logEl.append(li);
     while (this.logEl.children.length > LOG_MAX) this.logEl.firstElementChild?.remove();
-    this.logEl.scrollTop = this.logEl.scrollHeight;
+    // Resposta maior que a janela: mostra o começo dela (lê-se de cima); senão, o fim da conversa.
+    const log = this.logEl;
+    log.scrollTop = li.offsetHeight > log.clientHeight ? li.offsetTop - log.offsetTop : log.scrollHeight;
   }
 
   private say(text: string, error = false): void {

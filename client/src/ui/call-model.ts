@@ -197,3 +197,19 @@ export function joinReply(parts: readonly ReplyPart[]): string {
     .filter(Boolean)
     .join('\n\n');
 }
+
+/**
+ * Última resposta final no histórico (ao abrir a ligação): o texto que fechou a última demanda terminada. Com o
+ * agente no meio de uma (`busyNow`), é a da demanda anterior; o que ele escreveu na atual ainda é passo.
+ */
+export function lastFinalReply(entries: readonly { kind: string; id: string; text?: string }[], busyNow: boolean): ReplyPart[] {
+  let last: ReplyPart[] = [];
+  let pending: ReplyPart[] = [];
+  for (const e of entries) {
+    // Prompt novo: o que estava guardado fechou a demanda anterior.
+    if (e.kind === 'user' && pending.length) last = pending;
+    pending = finalReplyStep(pending, e, true).pending;
+  }
+  if (!busyNow && pending.length) last = pending;
+  return last;
+}

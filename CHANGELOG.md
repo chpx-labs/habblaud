@@ -20,8 +20,8 @@ do meio (0.**3**.0).
   arrasta pela barra do título e se redimensiona pelas bordas (duplo clique devolve ao canto). Funciona pelo celular
   com `messages` e `terminal` no `HABBLAUD_REMOTE_ALLOW`.
 - **Ligação: só a resposta final.** A ligação mostra e lê a resposta de cada demanda quando o agente termina, e não
-  cada texto do caminho ("Vou rodar os testes…"): texto seguido de uma ação era só um passo. **Ler: Tudo, passo a
-  passo** volta ao jeito antigo.
+  cada texto do caminho ("Vou rodar os testes…"): texto seguido de uma ação era só um passo. Ao ligar, a última
+  resposta do agente aparece na tela (sem ser lida; **Repetir** lê), e uma resposta maior que a janela abre no começo.
 - **Ligação: respostas formatadas como no terminal.** O painel mostra a resposta inteira com negrito, listas,
   títulos e blocos de código (cada um com **Copiar**; os longos aparecem recolhidos com **Mostrar tudo**). A voz
   continua lendo a versão sem código nem links. Um agente ocupado não sai mais da ligação quando a caixa de entrada

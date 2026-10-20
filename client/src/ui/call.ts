@@ -238,8 +238,6 @@ export class CallPanel implements UiComponent, CallControl {
       load();
       speechSynthesis.addEventListener?.('voiceschanged', load);
     }
-    // Já sabe se há voz natural antes da primeira ligação (a saudação sai nela).
-    if (typeof fetch === 'function') this.loadNatural();
   }
 
   get isOpen(): boolean {
@@ -276,7 +274,9 @@ export class CallPanel implements UiComponent, CallControl {
     this.addLog({ kind: 'info', text: many ? tr('{0} entrou na ligação.', [a.name]) : tr('Ligação com {0}.', [a.name]) });
     // Dentro do clique: libera a voz no celular (o iPhone só fala se a primeira fala nasce de um toque).
     this.unlockAudio();
-    this.speak(many ? tr('{0} na linha.', [a.name]) : tr('Ligação com {0}.', [a.name]), party);
+    // Pergunta pela voz natural só ao ligar (não na abertura da página); a saudação espera a resposta para já sair nela.
+    const greeting = many ? tr('{0} na linha.', [a.name]) : tr('Ligação com {0}.', [a.name]);
+    void this.loadNatural().then(() => this.parties.has(party.id) && this.speak(greeting, party));
     setHidden(this.el, false);
     this.ctx.invalidate();
   }
@@ -324,7 +324,7 @@ export class CallPanel implements UiComponent, CallControl {
     });
     setHidden(this.talk.el, !this.canDictate);
     setHidden(this.noMic, this.canDictate);
-    this.loadNatural();
+    void this.loadNatural();
     setHidden(this.kindRow, !this.natural.available);
     if (this.kindSel.value !== this.voiceKind) this.kindSel.value = this.voiceKind;
     const name = this.target ? this.parties.get(this.target)?.name ?? '' : '';
@@ -613,11 +613,11 @@ export class CallPanel implements UiComponent, CallControl {
     );
   }
 
-  private loadNatural(): void {
+  private loadNatural(): Promise<void> {
     const now = Date.now();
-    if (now - this.natural.at < NATURAL_TTL_MS) return;
+    if (now - this.natural.at < NATURAL_TTL_MS || typeof fetch !== 'function') return Promise.resolve();
     this.natural.at = now;
-    void fetch('/api/tts', { credentials: 'same-origin', cache: 'no-store' })
+    return fetch('/api/tts', { credentials: 'same-origin', cache: 'no-store' })
       .then((r) => (r.ok ? (r.json() as Promise<{ available?: boolean; voices?: unknown }>) : null))
       .then((body) => {
         const available = body?.available === true;

@@ -12,14 +12,14 @@
       "h": 128
     },
     "signage": {
-      "file": "brand/signage.png",
+      "file": "brand/chpx-signage.png",
       "w": 64,
-      "h": 16
+      "h": 24
     },
     "signageLarge": {
-      "file": "brand/signage@4x.png",
+      "file": "brand/chpx-signage@4x.png",
       "w": 256,
-      "h": 64
+      "h": 96
     },
     "favicon16": "brand/favicon-16.png",
     "favicon32": "brand/favicon-32.png",

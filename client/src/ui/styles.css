@@ -11861,3 +11861,62 @@ html.is-replay #world {
   font-size: 11px;
   color: var(--ui-faint);
 }
+
+.ui-req-new {
+  margin-left: auto;
+}
+
+.ui-req-form,
+.ui-req-replybox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ui-req-form {
+  margin: 0 14px 10px;
+  padding: 10px;
+  border-radius: 9px;
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-soft);
+}
+
+.ui-req-form[hidden] {
+  display: none;
+}
+
+.ui-req-replybox {
+  margin-top: 10px;
+}
+
+.ui-req-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ui-req-row > select {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.ui-req-input {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-solid);
+  color: var(--ui-text);
+  font: 13px/1.4 var(--font-ui);
+}
+
+.ui-req-area {
+  resize: vertical;
+}
+
+.ui-req-msg {
+  margin: 0;
+  min-height: 1em;
+  font-size: 12px;
+  color: var(--ui-muted);
+}

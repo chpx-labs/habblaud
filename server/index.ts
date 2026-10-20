@@ -370,6 +370,18 @@ const api = createApiHandler({
   deliveries,
   files: deliveryFiles,
   companyDir: config.companyDir,
+  companyNotify: (sector, text) => {
+    // O agente principal aberto na sala da pasta do setor (o mais recente), pela caixa de mensagens.
+    if (!messages || !config.companyDir) return tr('mensagens desligadas: o setor vê quando abrir');
+    const norm = (p: string) => p.toLowerCase().replace(/\\/g, '/').replace(/\/+$/, '');
+    const folder = norm(join(config.companyDir, sector));
+    const snap = hub.current();
+    const rooms = new Set(snap.rooms.filter((r) => norm(r.path ?? '') === folder).map((r) => r.id));
+    const agent = snap.agents.filter((a) => a.kind === 'main' && rooms.has(a.roomId) && a.canMessage).sort((a, b) => (b.lastEventAt ?? 0) - (a.lastEventAt ?? 0))[0];
+    if (!agent) return tr('o setor não está aberto agora: vê o pedido quando abrir');
+    const r = messages.send({ agentId: agent.id, text });
+    return 'message' in r ? tr('{0} foi avisado(a)', [agent.name]) : tr('não deu para avisar {0}: vê quando abrir', [agent.name]);
+  },
   spawnFolders: async () => {
     const snap = hub.current();
     const last = new Map<string, number>();

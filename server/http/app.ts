@@ -20,7 +20,7 @@ import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../s
 import type { SpawnFolder } from '../spawn/folders';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
 import { parseTtsRequest, TTS_BODY_MAX, type TtsService } from '../tts/tts';
-import { readCompanyRequests } from '../company/requests';
+import { CompanyError, ceoMessage, createAsCeo, parseCeoReply, parseCeoRequest, readCompanyRequests, replyAsCeo } from '../company/requests';
 import type { DeliveryIndex } from '../deliveries/deliveries';
 import type { FileFetcher } from '../deliveries/fetcher';
 import { HOST_WAIT_MS } from '../host-wait';
@@ -28,6 +28,8 @@ import { HOST_WAIT_MS } from '../host-wait';
 export interface ApiDeps {
   /** Pasta da empresa (HABBLAUD_COMPANY_DIR): GET /api/company/requests lista os pedidos entre setores. */
   companyDir?: string;
+  /** Avisa o agente do setor (mensagem pelo escritório); devolve o que aconteceu, para a página dizer. */
+  companyNotify?: (sector: string, text: string) => string;
   office: Office;
   hub: Hub;
   accounts: AccountsService;
@@ -584,11 +586,29 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
       } else methodNotAllowed(res, 'GET, POST');
       return true;
     }
-    if (path === '/api/company/requests') {
-      // Pedidos entre setores (company/requests.ts): só leitura, como o escritório.
-      if (!isRead) methodNotAllowed(res, 'GET');
-      else if (!deps.companyDir) sendJson(res, 404, { error: tr('pedidos entre setores desligados (HABBLAUD_COMPANY_DIR)') });
-      else readCompanyRequests(deps.companyDir).then((r) => sendJson(res, 200, r), (err) => fail(res, err));
+    if (path === '/api/company/requests' || path.startsWith('/api/company/requests/')) {
+      // Pedidos entre setores (company/requests.ts). Ler: como o escritório. O CEO responder ou pedir: como mandar
+      // uma mensagem (a mesma trava), e o setor é avisado pelo escritório.
+      const dir = deps.companyDir;
+      const reply = /^\/api\/company\/requests\/([\w-]{1,64})\/reply$/.exec(path);
+      if (!dir) sendJson(res, 404, { error: tr('pedidos entre setores desligados (HABBLAUD_COMPANY_DIR)') });
+      else if (path === '/api/company/requests' && isRead) readCompanyRequests(dir).then((r) => sendJson(res, 200, r), (err) => fail(res, err));
+      else if (method !== 'POST' || (path !== '/api/company/requests' && !reply)) methodNotAllowed(res, 'GET, POST');
+      else if (!trusted(req, 'messages')) sendJson(res, 403, { error: denied(req, tr('responder pedidos só pelo próprio computador (http://localhost)')) });
+      else
+        readJson(req)
+          .then(async (body) => {
+            if (reply) {
+              const r = parseCeoReply(body);
+              const out = await replyAsCeo(dir, reply[1], r);
+              const notified = deps.companyNotify?.(out.notify, ceoMessage('reply', out.request, r.text)) ?? '';
+              return sendJson(res, 200, { request: out.request, notified });
+            }
+            const created = await createAsCeo(dir, parseCeoRequest(body));
+            const notified = deps.companyNotify?.(created.to, ceoMessage('new', created, created.text)) ?? '';
+            sendJson(res, 201, { request: created, notified });
+          })
+          .catch((err) => (err instanceof CompanyError ? sendJson(res, err.status, { error: err.message }) : fail(res, err)));
       return true;
     }
     if (path === '/api/deliveries' || path.startsWith('/api/deliveries/')) {

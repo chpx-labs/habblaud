@@ -725,7 +725,7 @@ Everything works without configuring anything. If you need to adjust something, 
 | `HABBLAUD_PTY` | off | `1` turns on the interactive terminal (open, take over and end Claude Code sessions from the office; local access only and outside Docker) and **New agent** (also in Docker, through `npm run codex:bridge`). Read the warning in [Privacy and security](#privacy-and-security). |
 | `HABBLAUD_CLAUDE_BIN` | `claude` from PATH | The Claude Code executable that the interactive terminal and New agent run. |
 | `HABBLAUD_REMOTE_ALLOW` | `permissions` | What the [phone with login](#phone-with-login-and-https-approving-requests) can do: `permissions`, `messages`, `terminal`, `spawn`, `rooms` (comma-separated) or `none`. The other `HABBLAUD_REMOTE_*` are written by `npm run remote:setup`. |
-| `HABBLAUD_COMPANY_DIR` | — | Company folder with requests between departments (`<folder>/pedidos/*.json` and, optionally, `<folder>/setores.json` with the names): turns on the read-only **Requests** panel (the envelope in the top bar). |
+| `HABBLAUD_COMPANY_DIR` | — | Company folder with requests between departments (`<folder>/pedidos/*.json` and, optionally, `<folder>/setores.json` with the names): turns on the **Requests** panel (the envelope in the top bar): view and, with messages allowed, reply and create requests as the CEO. |
 | `HABBLAUD_MENSAGENS` | on (with the terminal) | `0` turns off only messages from the office (the box in the terminal and in the agent's details). |
 | `HABBLAUD_CODEX` | on | `0` turns off Codex in the office. |
 | `HABBLAUD_CODEX_DIRS` | automatic detection | Codex folders, comma-separated (instead of `~/.codex*` and `CODEX_HOME`). |

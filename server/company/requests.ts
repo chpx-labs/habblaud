@@ -2,8 +2,9 @@
 // <pasta>/pedidos/<id>.json, escrito pela ferramenta dos setores (bin/pedido.mjs). Aqui só se lê, para o painel
 // Pedidos da página (GET /api/company/requests). Os nomes dos setores vêm de <pasta>/setores.json ({slug: nome}),
 // quando existe. Arquivo estragado ou fora do formato fica de fora.
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tr } from '../../shared/i18n';
 
 export type RequestStatus = 'aberto' | 'andamento' | 'feito' | 'recusado';
 
@@ -102,4 +103,101 @@ export async function readCompanyRequests(dir: string): Promise<CompanyRequests>
     }),
   );
   return { sectors, requests: orderRequests(parsed.filter((r): r is CompanyRequest => !!r)) };
+}
+
+// ------------------------------------------------------------------ o CEO pelo painel (escrita)
+
+/** Corpo de POST /api/company/requests/:id/reply. */
+export interface CeoReply {
+  text: string;
+  status?: RequestStatus;
+}
+
+/** Corpo de POST /api/company/requests (pedido novo do CEO). */
+export interface CeoRequest {
+  to: string;
+  title: string;
+  text: string;
+}
+
+export class CompanyError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const REPLY_MAX = 4_000;
+
+export function parseCeoReply(raw: unknown): CeoReply {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const text = typeof r.text === 'string' ? r.text.trim().slice(0, REPLY_MAX) : '';
+  const status = r.status as RequestStatus | undefined;
+  if (status !== undefined && !STATUS.has(status)) throw new CompanyError(400, tr('status inválido'));
+  if (!text && !status) throw new CompanyError(400, tr('escreva a resposta'));
+  return { text, ...(status ? { status } : {}) };
+}
+
+export function parseCeoRequest(raw: unknown): CeoRequest {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const to = typeof r.to === 'string' ? r.to.trim() : '';
+  const title = typeof r.title === 'string' ? r.title.trim().slice(0, 200) : '';
+  const text = typeof r.text === 'string' ? r.text.trim().slice(0, TEXT_MAX) : '';
+  if (!SLUG.test(to) || to === 'ceo') throw new CompanyError(400, tr('escolha o setor'));
+  if (!title) throw new CompanyError(400, tr('dê um título ao pedido'));
+  return { to, title, text: text || title };
+}
+
+function newId(now: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  const rnd = Math.random().toString(36).slice(2, 5);
+  return `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}-${rnd}`;
+}
+
+async function writeAtomic(file: string, data: unknown): Promise<void> {
+  const tmp = `${file}.tmp`;
+  await writeFile(tmp, JSON.stringify(data, null, 2) + '\n');
+  await rename(tmp, file);
+}
+
+/**
+ * Resposta do CEO a um pedido (o mesmo formato que a ferramenta grava em `historico`). Devolve o pedido atualizado
+ * e o setor que deve ser avisado (quem pediu; se o CEO comenta um pedido entre dois setores, quem está com ele).
+ */
+export async function replyAsCeo(dir: string, id: string, reply: CeoReply, now = new Date()): Promise<{ request: CompanyRequest; notify: string }> {
+  if (!/^[\w-]{1,64}$/.test(id)) throw new CompanyError(400, tr('id inválido'));
+  const file = join(dir, 'pedidos', `${id}.json`);
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+  } catch {
+    throw new CompanyError(404, tr('pedido não encontrado'));
+  }
+  if (!parseRequest(raw)) throw new CompanyError(422, tr('pedido em formato desconhecido'));
+  const at = now.toISOString();
+  if (reply.status) raw.status = reply.status;
+  raw.atualizado = at;
+  const hist = Array.isArray(raw.historico) ? raw.historico : [];
+  hist.push({ at, setor: 'ceo', texto: reply.text, ...(reply.status ? { status: reply.status } : {}) });
+  raw.historico = hist;
+  await writeAtomic(file, raw);
+  const request = parseRequest(raw)!;
+  return { request, notify: request.from === 'ceo' ? request.to : request.to === 'ceo' ? request.from : request.to };
+}
+
+/** Pedido novo do CEO para um setor. */
+export async function createAsCeo(dir: string, req: CeoRequest, now = new Date()): Promise<CompanyRequest> {
+  await mkdir(join(dir, 'pedidos'), { recursive: true });
+  const at = now.toISOString();
+  const raw = { id: newId(now), de: 'ceo', para: req.to, titulo: req.title, texto: req.text, status: 'aberto', criado: at, atualizado: at, historico: [] };
+  await writeAtomic(join(dir, 'pedidos', `${raw.id}.json`), raw);
+  return parseRequest(raw)!;
+}
+
+/** O texto que chega ao agente do setor (o mesmo jeito da ferramenta bin/pedido.mjs). */
+export function ceoMessage(kind: 'reply' | 'new', r: CompanyRequest, text: string, toolCmd = 'node C:/empresa/bin/pedido.mjs'): string {
+  if (kind === 'new') return `📨 Pedido novo do CEO (${r.id}): ${r.title}\n\n${r.text}\n\nQuando puder, trate e responda com: ${toolCmd} responder ${r.id} "<resposta>" --status feito`;
+  return `📬 Resposta do CEO ao pedido ${r.id} ("${r.title}") [${r.status}]:\n\n${text || '(sem comentário)'}\n\n(Siga o seu trabalho com isso; para ver tudo: ${toolCmd} ver ${r.id})`;
 }

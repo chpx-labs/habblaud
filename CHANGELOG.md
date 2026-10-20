@@ -14,7 +14,9 @@ do meio (0.**3**.0).
 
 - **Pedidos entre setores.** Com `HABBLAUD_COMPANY_DIR` (a pasta da empresa), o envelope na barra do topo mostra os
   pedidos que um setor fez a outro (`<pasta>/pedidos/*.json`), abertos primeiro, com o selo dos abertos; um toque
-  mostra o texto e as respostas. Só leitura: quem cria e responde são os agentes dos setores.
+  mostra o texto e as respostas. Com as mensagens liberadas, o CEO também responde por ali (**Aprovar**, **Recusar**,
+  **Responder** nos pedidos feitos a ele; **Comentar** nos outros) e cria pedidos (**+ Novo pedido**, com o modelo
+  "App novo"), e o setor é avisado na hora pelo escritório.
 
 - **Ligação: histórico da conversa.** Ao abrir a ligação aparecem as últimas 10 trocas com o agente (o seu pedido e a
   resposta final de cada uma, com a hora); a mais recente aberta e as outras fechadas, com o começo à vista (um clique

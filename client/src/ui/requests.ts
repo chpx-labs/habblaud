@@ -1,8 +1,11 @@
 // Pedidos entre setores (botão do envelope na barra do topo): o que um setor da empresa pediu a outro, lido de
 // GET /api/company/requests (server/company/requests.ts, pasta HABBLAUD_COMPANY_DIR). Abertos primeiro; um toque num
 // pedido mostra o texto e as respostas. O selo conta os abertos. Sem a pasta configurada (404), o botão não aparece.
-// Só leitura: quem cria e responde são os agentes dos setores (bin/pedido.mjs da pasta da empresa).
+// Quem cria e responde são os agentes dos setores (bin/pedido.mjs da pasta da empresa); o CEO, com as mensagens
+// liberadas, também pede (botão "Novo pedido", com o modelo "App novo") e responde (Aprovar, Recusar, Responder) por aqui:
+// POST /api/company/requests e /api/company/requests/:id/reply, e o setor é avisado pelo escritório.
 import { tr } from '../../../shared/i18n';
+import { access } from '../net/access';
 import type { UiComponent, UiContext } from './context';
 import { h, iconButton, setHidden, setText } from './dom';
 import { relativeTime } from './format';
@@ -52,6 +55,15 @@ export function sectorName(sectors: Readonly<Record<string, string>>, slug: stri
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** Texto do pedido "App novo" (o fluxo de setor em setor está no manual geral da empresa). */
+export function appNovoText(ideia: string): string {
+  return [
+    ideia.trim(),
+    '',
+    tr('Fluxo App novo (veja o manual geral): Produto e Design faz o estudo, o PRD, o nome, o preço e o design em apps/<slug>/ e pede a aprovação do CEO; depois passa ao Desenvolvimento, que constrói e pede o teste do CEO; depois ao Marketing, que prepara as lojas e pede o OK do envio; e ao Comercial e Suporte, que prepara o FAQ.'),
+  ].join('\n');
+}
+
 export function statusLabel(s: RequestStatus): string {
   switch (s) {
     case 'aberto':
@@ -85,6 +97,16 @@ export class CompanyRequests implements UiComponent {
   private loaded = false;
   private error = '';
   private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly newBtn: HTMLButtonElement;
+  private readonly form: HTMLElement;
+  private readonly formTo: HTMLSelectElement;
+  private readonly formKind: HTMLSelectElement;
+  private readonly formTitle: HTMLInputElement;
+  private readonly formText: HTMLTextAreaElement;
+  private readonly formMsg: HTMLElement;
+  private sending = false;
+  /** Rascunhos das respostas por pedido (sobrevivem ao redesenho da lista). */
+  private drafts = new Map<string, string>();
 
   constructor(private readonly ctx: UiContext) {
     this.badge = h('span', { class: 'ui-deliv-badge', hidden: true, attrs: { 'aria-hidden': 'true' } });
@@ -97,12 +119,45 @@ export class CompanyRequests implements UiComponent {
     this.tabClosed = h('button', { class: 'ui-req-tab', type: 'button', text: tr('Fechados'), on: { click: () => this.setTab(true) } });
     this.listEl = h('ul', { class: 'ui-req-list', attrs: { 'aria-label': tr('Pedidos') } });
     this.empty = h('p', { class: 'ui-deliv-empty' });
+    this.newBtn = h('button', { class: 'ui-btn ui-btn--sm ui-req-new', type: 'button', text: tr('+ Novo pedido'), on: { click: () => this.toggleForm() } });
+    this.formTo = h('select', { class: 'ui-req-input', attrs: { 'aria-label': tr('Para qual setor') } });
+    this.formKind = h(
+      'select',
+      { class: 'ui-req-input', attrs: { 'aria-label': tr('Tipo de pedido') } },
+      h('option', { text: tr('Pedido'), attrs: { value: 'pedido' } }),
+      h('option', { text: tr('App novo (ideia)'), attrs: { value: 'app' } }),
+    );
+    this.formTitle = h('input', { class: 'ui-req-input', type: 'text', attrs: { maxlength: 200, placeholder: tr('Título curto'), 'aria-label': tr('Título') } });
+    this.formText = h('textarea', { class: 'ui-req-input ui-req-area', attrs: { rows: 4, maxlength: 8000, placeholder: tr('O que precisa, por quê e para quando'), 'aria-label': tr('Texto do pedido') } });
+    this.formKind.addEventListener('change', () => {
+      const app = this.formKind.value === 'app';
+      if (app) this.formTo.value = 'produto-design';
+      this.formTitle.placeholder = app ? tr('Nome provisório do app') : tr('Título curto');
+      this.formText.placeholder = app ? tr('A ideia: para quem é, o problema que resolve, o que ele faz') : tr('O que precisa, por quê e para quando');
+    });
+    this.formMsg = h('p', { class: 'ui-req-msg', role: 'status' });
+    this.form = h(
+      'div',
+      { class: 'ui-req-form', hidden: true },
+      h('div', { class: 'ui-req-row' }, this.formKind, this.formTo),
+      this.formTitle,
+      this.formText,
+      h(
+        'div',
+        { class: 'ui-req-row' },
+        h('button', { class: 'ui-btn ui-btn--primary ui-btn--sm', type: 'button', text: tr('Enviar pedido'), on: { click: () => void this.createRequest() } }),
+        h('button', { class: 'ui-btn ui-btn--sm', type: 'button', text: tr('Cancelar'), on: { click: () => this.toggleForm(false) } }),
+      ),
+      this.formMsg,
+    );
+    for (const el of [this.formTitle, this.formText]) el.addEventListener('keydown', (e) => e.stopPropagation());
     this.el = h(
       'div',
       { class: 'ui-popover ui-deliv ui-req', role: 'dialog', tabIndex: -1, attrs: { 'aria-label': tr('Pedidos entre setores'), popover: 'auto' } },
       h('div', { class: 'ui-popover__head' }, h('h2', { text: tr('Pedidos entre setores') }), iconButton(ICONS.close, tr('Fechar'), () => this.hide(), 'ui-icon-btn--sm')),
       h('p', { class: 'ui-deliv-lead', text: tr('O que um setor pediu a outro. Toque num pedido para ver o texto e as respostas.') }),
-      h('div', { class: 'ui-req-tabs', role: 'tablist' }, this.tabOpen, this.tabClosed),
+      h('div', { class: 'ui-req-tabs', role: 'tablist' }, this.tabOpen, this.tabClosed, this.newBtn),
+      this.form,
       this.empty,
       this.listEl,
     );
@@ -141,6 +196,70 @@ export class CompanyRequests implements UiComponent {
   private hide(): void {
     if (typeof this.el.hidePopover === 'function' && this.isShown) this.el.hidePopover();
     this.el.classList.remove('is-open');
+  }
+
+  /** O CEO pode pedir e responder daqui (mensagens liberadas para esta página). */
+  private get canWrite(): boolean {
+    return access().messages && !this.ctx.store.replaying;
+  }
+
+  private toggleForm(on = this.form.hidden): void {
+    if (on) {
+      const opts = Object.keys(this.sectors).filter((k) => k !== 'ceo');
+      this.formTo.replaceChildren(...opts.map((k) => h('option', { text: sectorName(this.sectors, k), attrs: { value: k } })));
+      if (this.formKind.value === 'app') this.formTo.value = 'produto-design';
+      setText(this.formMsg, '');
+    }
+    setHidden(this.form, !on);
+    if (on) this.formTitle.focus();
+  }
+
+  private async post(url: string, body: unknown): Promise<{ notified?: string }> {
+    const res = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const out = (await res.json().catch(() => ({}))) as { error?: string; notified?: string };
+    if (!res.ok) throw new Error(out.error ?? tr('erro {0}', [res.status]));
+    return out;
+  }
+
+  private async createRequest(): Promise<void> {
+    if (this.sending) return;
+    const app = this.formKind.value === 'app';
+    const title = this.formTitle.value.trim();
+    const ideia = this.formText.value.trim();
+    if (!title) return void setText(this.formMsg, tr('Dê um título ao pedido.'));
+    this.sending = true;
+    setText(this.formMsg, tr('Enviando…'));
+    try {
+      const out = await this.post(REQUESTS_URL, { to: this.formTo.value, title: app ? tr('App novo: {0}', [title]) : title, text: app ? appNovoText(ideia || title) : ideia });
+      this.formTitle.value = '';
+      this.formText.value = '';
+      this.toggleForm(false);
+      this.ctx.announce(out.notified ? tr('Pedido enviado: {0}.', [out.notified]) : tr('Pedido enviado.'));
+      this.showClosed = false;
+      await this.refresh();
+    } catch (err) {
+      setText(this.formMsg, tr('Não deu para enviar: {0}', [(err as Error).message]));
+    } finally {
+      this.sending = false;
+    }
+  }
+
+  private async reply(r: CompanyRequest, status: RequestStatus | undefined, input: HTMLTextAreaElement, msg: HTMLElement): Promise<void> {
+    if (this.sending) return;
+    const text = input.value.trim() || (status === 'feito' ? tr('Aprovado.') : status === 'recusado' ? tr('Recusado.') : '');
+    if (!text) return void setText(msg, tr('Escreva a resposta.'));
+    this.sending = true;
+    setText(msg, tr('Enviando…'));
+    try {
+      const out = await this.post(`${REQUESTS_URL}/${encodeURIComponent(r.id)}/reply`, { text, ...(status ? { status } : {}) });
+      this.drafts.delete(r.id);
+      this.ctx.announce(out.notified ? tr('Resposta enviada: {0}.', [out.notified]) : tr('Resposta enviada.'));
+      await this.refresh();
+    } catch (err) {
+      setText(msg, tr('Não deu para enviar: {0}', [(err as Error).message]));
+    } finally {
+      this.sending = false;
+    }
   }
 
   private setTab(closed: boolean): void {
@@ -197,6 +316,7 @@ export class CompanyRequests implements UiComponent {
     const open = this.list.filter(isOpen);
     const closed = this.list.filter((r) => !isOpen(r));
     setText(this.tabOpen, tr('Abertos ({0})', [open.length]));
+    setHidden(this.newBtn, !this.canWrite);
     this.tabOpen.setAttribute('aria-selected', String(!this.showClosed));
     this.tabClosed.setAttribute('aria-selected', String(this.showClosed));
     const shown = this.showClosed ? closed : open;
@@ -213,6 +333,19 @@ export class CompanyRequests implements UiComponent {
             : tr('Nenhum pedido aberto entre os setores.'),
     );
     this.listEl.replaceChildren(...shown.map((r) => h('li', {}, this.card(r, now))));
+  }
+
+  /** Responder um pedido aberto: Aprovar/Recusar nos que foram feitos ao CEO; comentar nos outros. */
+  private replyBox(r: CompanyRequest): HTMLElement {
+    const input = h('textarea', { class: 'ui-req-input ui-req-area', attrs: { rows: 2, maxlength: 4000, placeholder: r.to === 'ceo' ? tr('Sua resposta (opcional ao aprovar)') : tr('Comentário para o setor'), 'aria-label': tr('Resposta') } });
+    input.value = this.drafts.get(r.id) ?? '';
+    input.addEventListener('input', () => this.drafts.set(r.id, input.value));
+    input.addEventListener('keydown', (e) => e.stopPropagation());
+    const msg = h('p', { class: 'ui-req-msg', role: 'status' });
+    const btn = (label: string, status: RequestStatus | undefined, primary = false) =>
+      h('button', { class: `ui-btn ui-btn--sm${primary ? ' ui-btn--primary' : ''}`, type: 'button', text: label, on: { click: () => void this.reply(r, status, input, msg) } });
+    const buttons = r.to === 'ceo' ? [btn(tr('Aprovar'), 'feito', true), btn(tr('Recusar'), 'recusado'), btn(tr('Responder'), undefined)] : [btn(tr('Comentar'), undefined)];
+    return h('div', { class: 'ui-req-replybox' }, input, h('div', { class: 'ui-req-row' }, ...buttons), msg);
   }
 
   private card(r: CompanyRequest, now: number): HTMLElement {
@@ -252,6 +385,7 @@ export class CompanyRequests implements UiComponent {
         );
       }
       if (!r.history.length) body.append(h('p', { class: 'ui-req-none', text: tr('Ainda sem resposta.') }));
+      if (this.canWrite && isOpen(r)) body.append(this.replyBox(r));
       body.append(h('p', { class: 'ui-req-id', text: r.id }));
       card.append(body);
     }

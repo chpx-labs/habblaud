@@ -12,6 +12,13 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Sala do CEO e o seu personagem.** O prédio ganha uma sala fixa, a Sala do CEO (norte da primeira coluna depois
+  do núcleo; as salas de projeto começam no sul dela), com mesa de diretor, canto do sofá com TV e estante, que os
+  agentes não usam nos passeios. Nela fica o CEO, o seu personagem (crachá dourado). O botão da gravata na barra do
+  topo ou a tecla `G` liga o controle: setas/WASD e o clique no chão o levam pelo escritório (Shift corre) e a câmera
+  vai junto; `G` de novo devolve as setas à câmera. Ele só existe no navegador: não é agente e não vai ao servidor
+  nem ao Habblaud World.
+
 - **Ligação: converse por voz com os agentes, um ou vários ao mesmo tempo.** O botão **📞 Ligar** (na seção Mandar
   mensagem da gaveta) ou a tecla `C` abre a ligação com o agente selecionado. Cada resposta nova dele é lida em voz
   alta pelo navegador, sem código, tabelas nem links, e quem passa a precisar de você é anunciado. **Falar** grava,

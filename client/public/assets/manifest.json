@@ -13,13 +13,13 @@
     },
     "signage": {
       "file": "brand/chpx-signage.png",
-      "w": 64,
-      "h": 24
+      "w": 72,
+      "h": 20
     },
     "signageLarge": {
       "file": "brand/chpx-signage@4x.png",
-      "w": 256,
-      "h": 96
+      "w": 288,
+      "h": 80
     },
     "favicon16": "brand/favicon-16.png",
     "favicon32": "brand/favicon-32.png",

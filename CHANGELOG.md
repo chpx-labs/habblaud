@@ -13,7 +13,7 @@ do meio (0.**3**.0).
 ### Adicionado
 
 - **Placa da recepção com a marca CHPX.** A placa sobre os elevadores mostra o logo da CHPX em pixel art (seta dourada
-  e "CHPX"), gerado a partir do logo de chpx.io (`assets/brand/chpx-signage.png`, 64x24, e a versão @4x).
+  e "CHPX"), gerado a partir do logo de chpx.io (`assets/brand/chpx-signage.png`, 72x20, e a versão @4x).
 
 - **Sala do CEO e o seu personagem.** O prédio ganha uma sala fixa, a Sala do CEO (norte da primeira coluna depois
   do núcleo; as salas de projeto começam no sul dela), com mesa de diretor, canto do sofá com TV e estante, que os

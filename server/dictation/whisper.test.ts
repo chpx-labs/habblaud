@@ -6,6 +6,11 @@ describe('Whisper local', () => {
     const raw = JSON.stringify({ result: { language: 'pt' }, transcription: [{ text: ' Crie um agente' }, { text: ' para o relatório. [BLANK_AUDIO]' }] });
     expect(parseWhisperJson(raw)).toEqual({ text: 'Crie um agente para o relatório.', lang: 'pt' });
     expect(parseWhisperJson('{}')).toEqual({ text: '', lang: '' });
+    // Só som de fundo: nada para mandar.
+    for (const noise of [' (MÚSICA DE FUNDO)', ' [Música]', ' (risos) (aplausos)', ' ♪ ♪']) {
+      expect(parseWhisperJson(JSON.stringify({ result: { language: 'pt' }, transcription: [{ text: noise }] })).text).toBe('');
+    }
+    expect(parseWhisperJson(JSON.stringify({ transcription: [{ text: ' (Música de fundo) Roda os testes.' }] })).text).toBe('Roda os testes.');
   });
 
   it('acha binários e o melhor modelo multilíngue (nunca um .en)', () => {

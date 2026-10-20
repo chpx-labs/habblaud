@@ -76,7 +76,9 @@ export function parseWhisperJson(raw: string): Transcript {
   const text = (d.transcription ?? [])
     .map((t) => (typeof t.text === 'string' ? t.text : ''))
     .join(' ')
-    .replace(/\[(BLANK_AUDIO|MUSIC|Música|SILENCE)\]|\((?:silence|música|music)\)/gi, '')
+    // Descrições de som que o Whisper escreve no lugar de fala: [BLANK_AUDIO], [Música], (MÚSICA DE FUNDO), (risos),
+    // (aplausos)... Ninguém dita entre colchetes, e parênteses curtos numa fala transcrita são sempre essas anotações.
+    .replace(/\[[^\]]{0,60}\]|\([^)]{0,60}\)|[♪♫]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
   return { text, lang: typeof d.result?.language === 'string' ? d.result.language : '' };

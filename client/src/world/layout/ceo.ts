@@ -1,6 +1,6 @@
 // Sala do CEO: sala fixa no lado norte da primeira coluna depois do núcleo (geometry.ts, ceoRect), sempre montada e
-// nunca desmontada. É do personagem que você controla (sim/visitor.ts, modo CEO): os assentos são só móveis, sem
-// pontos de uso, então os agentes não a usam nos passeios (não há 'desk', 'sofa', 'shelf'... para eles achar).
+// nunca desmontada. É do personagem que você controla (sim/visitor.ts, modo CEO): os assentos são do tipo 'ceo_seat',
+// que nenhum agente procura, então os agentes não a usam nos passeios (não há 'desk', 'sofa', 'shelf'... para eles).
 import type { WallStyle } from '../../art/api';
 import { DOOR_W, DOOR_X, TILE } from '../constants';
 import { AreaBuilder } from './builder';
@@ -41,16 +41,17 @@ export function layoutCeoRoom(): AreaLayout {
   // ---- mesa de diretor (dupla, madeira escura), cadeira atrás e duas cadeiras de visita
   b.furn('desk_back', 5, 5, 'dark', { order: 0.35 });
   b.furn('desk_back', 7, 5, 'dark', { order: 0.36 });
-  b.furn('office_chair_front', 6, 4, 'black', { dx: TILE / 2, order: 0.55 });
-  b.furn('office_chair', 5, 6, 'red', { order: 0.6 });
-  b.furn('office_chair', 8, 6, 'red', { order: 0.61 });
+  b.seat('ceo_seat', 'office_chair_front', 6, 4, 'down', 'black', { dx: TILE / 2, order: 0.55 });
+  b.seat('ceo_seat', 'office_chair', 5, 6, 'up', 'red', { order: 0.6 });
+  b.seat('ceo_seat', 'office_chair', 8, 6, 'up', 'red', { order: 0.61 });
 
   // ---- canto do sofá, de frente para a TV
   b.furn('coffee_table', 11, 4, undefined, { dx: TILE / 2, order: 0.45 });
-  b.furn('sofa', 11, 6, 'up', { order: 0.5 });
-  b.furn('armchair', 10, 4, 'right', { order: 0.55 });
+  const sofa = b.furn('sofa', 11, 6, 'up', { order: 0.5 });
+  for (let i = 0; i < 3; i++) b.seat('ceo_seat', 'sofa', 11 + i, 6, 'up', 'up', { noFurniture: true, furnitureId: sofa });
+  b.seat('ceo_seat', 'armchair', 10, 4, 'right', 'right', { order: 0.55 });
   b.block(13, 4, 1, 1);
-  b.furn('armchair', 14, 4, 'left', { order: 0.56 });
+  b.seat('ceo_seat', 'armchair', 14, 4, 'left', 'left', { order: 0.56 });
 
   // ---- estantes, plantas e luminária
   b.furn('bookshelf', 1, 2, undefined, { order: 0.25 });

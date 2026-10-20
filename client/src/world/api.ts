@@ -77,6 +77,12 @@ export interface CeoWorld {
   setIntent(intent: { dx: number; dy: number; run: boolean }): void;
   /** Leva a câmera até o CEO. */
   focus(): void;
+  /** O que está ao alcance do CEO: o agente mais perto (para falar) e se há assento para sentar; e se está sentado. */
+  nearby(): { agentId: string | null; seat: boolean; seated: boolean };
+  /** Senta no assento mais perto ou, sentado, levanta. Devolve se fez algo. */
+  toggleSit(): boolean;
+  /** Posição na tela (px CSS) logo acima da cabeça do CEO, ou null se não visível. */
+  screen(): { x: number; y: number } | null;
 }
 
 export interface WorldApi {

@@ -18,6 +18,12 @@ do meio (0.**3**.0).
   topo ou a tecla `G` liga o controle: setas/WASD e o clique no chão o levam pelo escritório (Shift corre) e a câmera
   vai junto; `G` de novo devolve as setas à câmera. Ele só existe no navegador: não é agente e não vai ao servidor
   nem ao Habblaud World.
+  - O CEO fica sentado à mesa dele e senta na cadeira, no sofá ou nas poltronas da sala (clique no assento ou `E`
+    perto dele); o teclado o levanta.
+  - Perto de um agente, uma barrinha sobre o CEO mostra **Falar com Fulano (E)**, que abre a ligação com ele (quem
+    não recebe mensagens abre os detalhes). Os agentes acenam 👋 quando o CEO chega perto (uma vez a cada minuto e
+    meio).
+  - O lápis da barrinha abre o editor do CEO: nome, dica visual, "Sortear" e as peças, como no editor dos agentes.
 
 - **Ligação: converse por voz com os agentes, um ou vários ao mesmo tempo.** O botão **📞 Ligar** (na seção Mandar
   mensagem da gaveta) ou a tecla `C` abre a ligação com o agente selecionado. Cada resposta nova dele é lida em voz

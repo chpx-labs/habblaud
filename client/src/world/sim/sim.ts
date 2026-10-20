@@ -38,7 +38,7 @@ import { RoomState } from './room-state';
 import { countShells, latestShellDone, shellLabel, shellStage, shellWaitSince, spinDir, spinPhase, yawnPhase } from './shell';
 import { SpotRegistry } from './spots';
 import type { Step } from './steps';
-import { EXIT_RADIUS, NO_INTENT, stepFree, tileAt, VISITOR_LANYARD, type VisitorIntent } from './visitor';
+import { canStand, EXIT_RADIUS, NO_INTENT, stepFree, tileAt, VISITOR_LANYARD, type VisitorIntent } from './visitor';
 import { tr } from '../../../../shared/i18n';
 
 /**
@@ -92,6 +92,12 @@ const INITIAL_LOUNGE_MIN_IDLE_MS = 90_000;
 /** Ninguém sai para passear nos primeiros segundos depois de abrir a página. */
 const INITIAL_OUTING_DELAY_MS = 5_000;
 const ENTER_MS = 180;
+/** CEO: distância (tiles) para "Sentar (E)", "Falar (E)" e o aceno dos agentes; aceno de novo só depois do intervalo. */
+const SEAT_RADIUS = 1.6;
+const TALK_RADIUS = 2.2;
+const GREET_RADIUS = 2.6;
+const GREET_MS = 1_600;
+const GREET_COOLDOWN_MS = 90_000;
 
 function between(rng: () => number, a: number, b: number): number {
   return a + rng() * (b - a);
@@ -586,7 +592,10 @@ export class Sim {
       if (ch.missingSince !== null && !ch.leaving && now - ch.missingSince >= MISSING_DEBOUNCE_MS) this.refreshMode(ch);
       this.runCharacter(ch, dt, now);
     }
-    if (this.visitor) this.runVisitor(this.visitor, dt, now);
+    if (this.visitor) {
+      this.runVisitor(this.visitor, dt, now);
+      this.greetVisitor(now);
+    }
     for (const [id, ch] of this.chars) {
       if (ch.gone) {
         this.spots.releaseAll(id);
@@ -1755,7 +1764,10 @@ export class Sim {
   setVisitor(info: AgentInfo | null, now: number, opts: { at?: { tx: number; ty: number; dir?: Dir }; lanyard?: string; badge?: string } = {}): Character | null {
     const old = this.visitor;
     this.visitorBadge = opts.badge;
-    if (old) for (const e of this.elevators) e.release(old.id, now);
+    if (old) {
+      for (const e of this.elevators) e.release(old.id, now);
+      this.spots.releaseAll(old.id);
+    }
     this.visitor = null;
     this.visitorIntent = { ...NO_INTENT };
     if (!info) return null;
@@ -1801,6 +1813,7 @@ export class Sim {
   visitorWalkTo(tx: number, ty: number, run = false): boolean {
     const v = this.visitor;
     if (!v || this.visitorBusy) return false;
+    if (v.atSpot) this.visitorStand();
     v.queue.length = 0;
     v.step = null;
     v.queue.push({ t: 'go', tx, ty, run });
@@ -1840,6 +1853,146 @@ export class Sim {
     return true;
   }
 
+  // ------------------------------------------------------------------- CEO (o personagem do próprio escritório)
+
+  /** O assento sob o CEO (sentado) ou o 'ceo_seat' livre mais perto (até SEAT_RADIUS tiles), ou null. */
+  visitorSeat(): SpotDef | null {
+    const v = this.visitor;
+    if (!v || this.visitorBusy) return null;
+    if (v.atSpot) return this.spots.get(v.atSpot) ?? null;
+    let best: SpotDef | null = null;
+    let bd = Infinity;
+    for (const s of this.spots.ofKind('ceo_seat')) {
+      if (!this.spots.isFree(s.id, v.id)) continue;
+      const d = Math.hypot(s.x - v.x, s.y - v.y) / TILE;
+      if (d <= SEAT_RADIUS && d < bd) {
+        best = s;
+        bd = d;
+      }
+    }
+    return best;
+  }
+
+  /** O CEO está sentado? */
+  get visitorSeated(): boolean {
+    return !!this.visitor?.atSpot;
+  }
+
+  /** O CEO senta no assento: anda até ele e encaixa (`instant`: já aparece sentado). */
+  visitorSit(spotId: string, instant = false): boolean {
+    const v = this.visitor;
+    const s = this.spots.get(spotId);
+    if (!v || !s?.seated || this.visitorBusy) return false;
+    if (v.atSpot === s.id) return true;
+    this.visitorStand();
+    if (!this.spots.reserve(s.id, v.id)) return false;
+    this.visitorIntent = { ...NO_INTENT };
+    v.queue.length = 0;
+    v.step = null;
+    if (instant) {
+      this.snapTo(v, s);
+      v.setPose('sit');
+      return true;
+    }
+    v.queue.push({ t: 'go', tx: s.tx, ty: s.ty }, { t: 'enter', spot: s.id });
+    return true;
+  }
+
+  /** O CEO na cadeira da mesa dele (a primeira 'ceo_seat'), já sentado. */
+  visitorSitAtDesk(): boolean {
+    const s = this.spots.ofKind('ceo_seat')[0];
+    return !!s && this.visitorSit(s.id, true);
+  }
+
+  /** Clique (px de mundo) num assento da sala do CEO: senta nele (andando até lá). */
+  visitorSitAt(x: number, y: number): boolean {
+    const s = this.spots.ofKind('ceo_seat').find((p) => Math.abs(p.x - x) <= TILE * 0.6 && y >= p.y - TILE * 1.2 && y <= p.y + 3);
+    return !!s && this.spots.isFree(s.id, this.visitor?.id) && this.visitorSit(s.id);
+  }
+
+  /** O CEO levanta e fica de pé num tile livre ao lado do assento: para o lado de `toward` (o teclado) ou atrás dele. */
+  visitorStand(toward?: { dx: number; dy: number }): boolean {
+    const v = this.visitor;
+    if (!v?.atSpot) return false;
+    const s = this.spots.get(v.atSpot);
+    this.spots.release(v.atSpot, v.id);
+    v.atSpot = null;
+    v.seated = false;
+    v.sortY = null;
+    v.queue.length = 0;
+    v.step = null;
+    if (s) {
+      const back: Record<Dir, [number, number]> = { down: [0, -1], up: [0, 1], left: [1, 0], right: [-1, 0] };
+      const [bx, by] = back[s.dir] ?? [0, 1];
+      const pref: [number, number][] = toward && (toward.dx || toward.dy) ? [[Math.sign(toward.dx), Math.sign(toward.dy)]] : [];
+      const order: [number, number][] = [...pref, [bx, by], [by, bx], [-by, -bx], [-bx, -by], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+      const ok = order.find(([dx, dy]) => canStand(this.building.grid, (s.tx + dx) * TILE + FOOT_DX, (s.ty + dy) * TILE + FOOT_DY));
+      if (ok) v.placeAtTile(s.tx + ok[0], s.ty + ok[1]);
+      else this.unstickVisitor(v);
+    }
+    v.setPose('stand');
+    return true;
+  }
+
+  /** Pés num lugar onde o passo livre não anda (assento, quina de móvel): vai para o tile livre mais perto. */
+  private unstickVisitor(v: Character): void {
+    const grid = this.building.grid;
+    if (canStand(grid, v.x, v.y)) return;
+    const t = tileAt(v.x, v.y);
+    let best: { x: number; y: number; d: number } | null = null;
+    for (let dy = -2; dy <= 2; dy++)
+      for (let dx = -2; dx <= 2; dx++) {
+        const x = (t.x + dx) * TILE + FOOT_DX;
+        const y = (t.y + dy) * TILE + FOOT_DY;
+        if (!canStand(grid, x, y)) continue;
+        const d = Math.hypot(x - v.x, y - v.y);
+        if (!best || d < best.d) best = { x: t.x + dx, y: t.y + dy, d };
+      }
+    if (best) v.placeAtTile(best.x, best.y);
+  }
+
+  /** O agente mais perto do CEO (até TALK_RADIUS tiles), para "Falar (E)"; null se ninguém. */
+  visitorNearAgent(): string | null {
+    const v = this.visitor;
+    if (!v || this.visitorBusy) return null;
+    let best: string | null = null;
+    let bd = Infinity;
+    for (const ch of this.chars.values()) {
+      if (ch.leaving || ch.gone || ch.inside || ch.alpha < 0.5) continue;
+      const d = Math.hypot(ch.x - v.x, ch.y - v.y) / TILE;
+      if (d <= TALK_RADIUS && d < bd) {
+        best = ch.id;
+        bd = d;
+      }
+    }
+    return best;
+  }
+
+  /** Quando cada agente acenou para o CEO pela última vez (para não acenar sem parar). */
+  private greetedAt = new Map<string, number>();
+  private nextGreetCheck = 0;
+
+  /**
+   * O CEO chega perto (só no próprio escritório): o agente acena (👋). Quem está parado de pé vira para ele e levanta a
+   * mão; sentado, levanta a mão da cadeira; andando ou numa roda, só o ícone. Uma vez a cada GREET_COOLDOWN_MS.
+   */
+  private greetVisitor(now: number): void {
+    if (this.visit || now < this.nextGreetCheck) return;
+    this.nextGreetCheck = now + 250;
+    const v = this.visitor;
+    if (!v || this.visitorBusy) return;
+    for (const ch of this.chars.values()) {
+      if (ch.leaving || ch.gone || ch.inside || ch.alpha < 1) continue;
+      if (Math.hypot(ch.x - v.x, ch.y - v.y) / TILE > GREET_RADIUS) continue;
+      if (now - (this.greetedAt.get(ch.id) ?? -Infinity) < GREET_COOLDOWN_MS) continue;
+      this.greetedAt.set(ch.id, now);
+      ch.setIcon('wave', GREET_MS, now);
+      if (ch.step || ch.queue.length || ch.gathering || now < ch.reactUntil) continue;
+      const dir = ch.seated ? undefined : dirOf(v.x - ch.x, v.y - ch.y, ch.dir);
+      ch.queue.push({ t: 'act', pose: 'raise_hand', ms: GREET_MS, held: ch.held, ...(dir ? { dir } : {}) });
+    }
+  }
+
   /**
    * Luzes da visita (veja VisitLight): apagado, as salas sem ninguém escuras; discreto, as salas prontas acesas. Ao vivo,
    * nada (quem chega acende, o último a sair apaga). `instant`: sem a transição (a entrada no prédio).
@@ -1862,9 +2015,11 @@ export class Sim {
     const intent = this.visitorIntent;
     const busy = this.visitorBusy;
     if (!busy && (intent.dx || intent.dy)) {
-      // o teclado manda: esquece o caminho do clique
+      // o teclado manda: levanta (se sentado), esquece o caminho do clique e sai de cima de assento/móvel
+      if (v.atSpot) this.visitorStand(intent);
       v.queue.length = 0;
       v.step = null;
+      this.unstickVisitor(v);
       const r = stepFree(this.building.grid, { x: v.x, y: v.y, dir: v.dir }, intent, (intent.run ? RUN_SPEED : WALK_SPEED) * dt);
       v.x = r.x;
       v.y = r.y;
@@ -1887,7 +2042,7 @@ export class Sim {
       if (v.arriving && !v.step && !v.queue.length) v.arriving = false;
       return;
     }
-    v.setPose('stand');
+    v.setPose(v.seated ? 'sit' : 'stand');
   }
 
   // =================================================================== aba oculta
@@ -1963,7 +2118,7 @@ export class Sim {
         v.inside = false;
         v.arriving = false;
         v.hiddenUntil = 0;
-        v.setPose('stand');
+        v.setPose(v.seated ? 'sit' : 'stand');
       }
     }
     if (this.visit) this.applyVisitLight(now);

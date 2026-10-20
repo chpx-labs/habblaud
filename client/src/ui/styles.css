@@ -11494,3 +11494,72 @@ html.is-replay #world {
     bottom: auto;
   }
 }
+
+/* CEO: barrinha sobre o personagem que você controla (Falar, Sentar/Levantar, editar) */
+.ui-ceo-hint {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: rgba(18, 21, 29, 0.88);
+  border: 1px solid rgba(201, 162, 39, 0.85);
+  pointer-events: auto;
+}
+
+.ui-ceo-hint[hidden],
+.ui-ceo-hint__btn[hidden],
+.ui-ceo-hint kbd[hidden] {
+  display: none;
+}
+
+.ui-ceo-hint__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
+  color: #ffe3a0;
+}
+
+.ui-ceo-hint__btn:hover {
+  background: rgba(60, 68, 88, 0.9);
+}
+
+.ui-ceo-hint kbd {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-soft);
+  color: var(--ui-text);
+  font: 600 10.5px/16px var(--font-ui);
+}
+
+.ui-ceo-editor {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.ui-ceo-editor .ui-dialog__body {
+  overflow: auto;
+}
+
+.ui-ceo-editor .ui-dialog__body.ui-char {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  animation: none;
+}

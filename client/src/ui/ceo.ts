@@ -1,12 +1,15 @@
-// O CEO: o seu personagem na sala do CEO (world/layout/ceo.ts). Fica sempre na sala; com o controle ligado (botão
-// da gravata na barra do topo ou a tecla G), as setas/WASD e o clique no chão o movem, e a câmera o segue (Shift
-// corre). Desligado, setas/WASD voltam a mover a câmera. A aparência fica no navegador (localStorage): um sorteio na
-// primeira vez. Ele só existe aqui: não é agente, não vai ao servidor nem ao Habblaud World.
+// O CEO: o seu personagem na sala do CEO (world/layout/ceo.ts). Fica sempre na sala, sentado à mesa; com o controle
+// ligado (botão da gravata na barra do topo ou a tecla G), as setas/WASD e o clique no chão o movem, e a câmera o segue
+// (Shift corre). Desligado, setas/WASD voltam a mover a câmera. Com o controle ligado, uma barrinha acompanha o CEO:
+// "Falar com Fulano (E)" perto de um agente (abre a ligação), "Sentar"/"Levantar" perto de um assento da sala dele e o
+// lápis que abre o editor (ui/ceo-editor.ts). A aparência fica no navegador (localStorage): um sorteio na primeira vez.
+// Ele só existe aqui: não é agente, não vai ao servidor nem ao Habblaud World.
 import { tr } from '../../../shared/i18n';
 import type { CeoMe } from '../world/api';
 import { intentFrom, moveKeyOf } from '../world/city/input';
+import { CeoEditor } from './ceo-editor';
 import type { UiComponent, UiContext } from './context';
-import { iconButton } from './dom';
+import { h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
 
 const CEO_KEY = 'habblaud.ceo';
@@ -40,16 +43,39 @@ function isTyping(t: EventTarget | null): boolean {
 
 export class CeoControl implements UiComponent {
   readonly button: HTMLButtonElement;
+  /** Barrinha sobre o CEO (Falar, Sentar/Levantar, editar). */
+  readonly hint: HTMLElement;
+  /** Editor do CEO: criado na primeira abertura. */
+  private editor: CeoEditor | null = null;
+  private me: CeoMe | null = null;
   private keys = new Set<string>();
   private shift = false;
   private shown = false;
+  private raf = 0;
+  private readonly talkBtn: HTMLButtonElement;
+  private readonly talkText: HTMLElement;
+  private readonly sitBtn: HTMLButtonElement;
+  private readonly sitKey: HTMLElement;
+  private readonly sitText: HTMLElement;
+  /** Agente ao alcance agora (para o E e o botão Falar). */
+  private near: string | null = null;
+  private lastSig = '';
 
   constructor(private ctx: UiContext) {
     this.button = iconButton(ICONS.ceo, tr('Controlar o CEO (G)'), () => this.toggle());
     this.button.setAttribute('aria-pressed', 'false');
+    this.talkText = h('span');
+    this.talkBtn = h('button', { class: 'ui-ceo-hint__btn', type: 'button', hidden: true, on: { click: () => this.talk() } }, h('kbd', { text: 'E' }), this.talkText);
+    this.sitKey = h('kbd', { text: 'E' });
+    this.sitText = h('span');
+    this.sitBtn = h('button', { class: 'ui-ceo-hint__btn', type: 'button', hidden: true, on: { click: () => this.sit() } }, this.sitKey, this.sitText);
+    const edit = iconButton(ICONS.pencil, tr('Editar o CEO (nome e aparência)'), () => this.edit(), 'ui-icon-btn--sm ui-ceo-hint__edit');
+    this.hint = h('div', { class: 'ui-ceo-hint', hidden: true }, this.talkBtn, this.sitBtn, edit);
     const ceo = ctx.world.ceo;
-    if (ceo) ceo.set(loadCeo());
-    else this.button.hidden = true;
+    if (ceo) {
+      this.me = loadCeo();
+      ceo.set(this.me);
+    } else this.button.hidden = true;
     addEventListener('keydown', (e) => this.onKey(e, true));
     addEventListener('keyup', (e) => this.onKey(e, false));
     addEventListener('blur', () => this.clearKeys());
@@ -65,9 +91,23 @@ export class CeoControl implements UiComponent {
     ceo.setControl(on);
     this.clearKeys();
     this.ctx.announce(
-      this.control ? tr('Controlando o CEO: setas/WASD ou clique no chão (Shift corre). G solta.') : tr('CEO solto: setas/WASD voltam a mover a câmera.'),
+      this.control
+        ? tr('Controlando o CEO: setas/WASD ou clique no chão (Shift corre). Perto de um agente, E fala com ele; perto de uma cadeira, E senta. G solta.')
+        : tr('CEO solto: setas/WASD voltam a mover a câmera.'),
     );
+    if (this.control) this.loop();
+    else this.stopLoop();
     this.ctx.invalidate();
+  }
+
+  /** Abre o editor do CEO. */
+  edit(): void {
+    if (!this.me) return;
+    if (!this.editor) {
+      this.editor = new CeoEditor((me) => this.apply(me));
+      this.ctx.root.append(this.editor.el);
+    }
+    this.editor.open(this.me);
   }
 
   render(): void {
@@ -77,19 +117,98 @@ export class CeoControl implements UiComponent {
     this.button.classList.toggle('is-on', on);
     this.button.setAttribute('aria-pressed', String(on));
     this.button.title = on ? tr('Soltar o CEO (G)') : tr('Controlar o CEO (G)');
+    if (!on) this.stopLoop();
+  }
+
+  private apply(me: CeoMe): void {
+    this.me = me;
+    saveCeo(me);
+    const ceo = this.ctx.world.ceo;
+    const control = this.control;
+    ceo?.set(me);
+    if (control) ceo?.setControl(true);
+    this.ctx.announce(tr('CEO salvo: {0}.', [me.name]));
+  }
+
+  /** Fala com o agente ao alcance: liga para ele (ou o põe na ligação); sem mensagens, abre os detalhes dele. */
+  private talk(): void {
+    const id = this.near;
+    if (!id) return;
+    const a = this.ctx.agent(id);
+    if (!a) return;
+    if (this.ctx.call?.canCall(id)) this.ctx.call.call(id);
+    else {
+      this.ctx.world.select({ type: 'agent', id });
+      this.ctx.announce(tr('{0} não recebe mensagens daqui: abri os detalhes.', [a.name]));
+    }
+  }
+
+  private sit(): void {
+    this.ctx.world.ceo?.toggleSit();
+  }
+
+  /** A barrinha acompanha o CEO enquanto o controle está ligado. */
+  private loop(): void {
+    if (this.raf) return;
+    const tick = () => {
+      this.raf = requestAnimationFrame(tick);
+      this.place();
+    };
+    this.raf = requestAnimationFrame(tick);
+  }
+
+  private stopLoop(): void {
+    if (this.raf) cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.near = null;
+    this.lastSig = '';
+    setHidden(this.hint, true);
+  }
+
+  private place(): void {
+    const ceo = this.ctx.world.ceo;
+    if (!ceo || !ceo.control) return this.stopLoop();
+    const n = ceo.nearby();
+    const a = n.agentId ? this.ctx.agent(n.agentId) : undefined;
+    this.near = a ? a.id : null;
+    const call = this.ctx.call;
+    const talk = a ? (call?.inCall(a.id) ? tr('Na ligação: {0}', [a.name]) : call?.canCall(a.id) ? tr('Falar com {0}', [a.name]) : tr('Ver {0}', [a.name])) : '';
+    const sig = `${talk}|${n.seat}|${n.seated}`;
+    if (sig !== this.lastSig) {
+      this.lastSig = sig;
+      setHidden(this.talkBtn, !a);
+      setText(this.talkText, talk);
+      setHidden(this.sitBtn, !n.seat);
+      setText(this.sitText, n.seated ? tr('Levantar') : tr('Sentar'));
+      // O E fala quando há alguém perto; senão, senta/levanta.
+      setHidden(this.sitKey, !!a);
+    }
+    const at = ceo.screen();
+    setHidden(this.hint, !at);
+    if (!at) return;
+    const w = this.hint.offsetWidth || 160;
+    const x = Math.max(8, Math.min(window.innerWidth - w - 8, at.x - w / 2));
+    this.hint.style.transform = `translate(${Math.round(x)}px, ${Math.round(at.y - 38)}px)`;
   }
 
   private onKey(e: KeyboardEvent, down: boolean): void {
     if (!this.control) return;
     if (e.key === 'Shift') this.shift = down;
     else if (typeof e.getModifierState === 'function') this.shift = e.getModifierState('Shift');
+    const blocked = e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || !!(e.target as HTMLElement | null)?.closest?.('dialog[open]') || !!this.editor?.isOpen;
+    if (down && !blocked && !e.repeat && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      if (this.near) this.talk();
+      else this.sit();
+      return;
+    }
     const k = moveKeyOf(e);
     if (!down) {
       if (k) this.keys.delete(k);
       this.push();
       return;
     }
-    if (!k || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || (e.target as HTMLElement | null)?.closest?.('dialog[open]')) return;
+    if (!k || blocked) return;
     e.preventDefault();
     this.keys.add(k);
     this.push();

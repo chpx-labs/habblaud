@@ -222,6 +222,8 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     if (hit?.type === 'agent') return setSelection(hit);
     setSelection(null);
     const w = camera.screenToWorld(at.x, at.y);
+    // O CEO: um clique numa cadeira, no sofá ou numa poltrona da sala dele senta ali.
+    if (!visitMode && sim.visitorSitAt(w.x, w.y)) return followVisitor();
     if (sim.visitorWalkTo(Math.floor(w.x / TILE), Math.floor(w.y / TILE))) followVisitor();
   };
   /** Põe (de novo) o CEO na sala dele: ao definir, ao trocar a aparência e depois que a simulação é recriada. */
@@ -234,8 +236,16 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     const now = Date.now();
     const room = ceoRect();
     const info = { ...visitorInfo(ceoMe, now), roomId: CEO_ROOM_ID, role: tr('CEO'), seed: ceoMe.seed };
-    // De pé diante da mesa de diretor, de frente para ela.
-    sim.setVisitor(info, now, { at: { tx: room.x + 7, ty: room.y + 8, dir: 'up' }, lanyard: CEO_LANYARD, badge: 'CEO' });
+    // Trocou a aparência: fica onde estava (sentado ou de pé). Senão, sentado na cadeira da mesa de diretor.
+    const old = sim.visitor;
+    const was = old && !old.gone ? { x: old.x, y: old.y, tx: old.tx, ty: old.ty, dir: old.dir, seat: old.atSpot } : null;
+    const ch = sim.setVisitor(info, now, { at: { tx: room.x + 7, ty: room.y + 8, dir: 'up' }, lanyard: CEO_LANYARD, badge: 'CEO' });
+    if (ch && was) {
+      if (was.seat && sim.visitorSit(was.seat, true)) return;
+      Object.assign(ch, { x: was.x, y: was.y, tx: was.tx, ty: was.ty, dir: was.dir });
+      return;
+    }
+    sim.visitorSitAtDesk();
   };
   const followVisitor = () => {
     if (!sim.visitor) return;
@@ -524,6 +534,25 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
         sim.visitorIntent = ceoControl ? { ...intent } : { ...NO_INTENT };
       },
       focus: () => followVisitor(),
+      nearby: () => {
+        if (!ceoMe || visitMode || !sim.visitor) return { agentId: null, seat: false, seated: false };
+        const seated = sim.visitorSeated;
+        return { agentId: sim.visitorNearAgent(), seat: seated || !!sim.visitorSeat(), seated };
+      },
+      toggleSit: () => {
+        if (!ceoMe || visitMode) return false;
+        if (sim.visitorSeated) return sim.visitorStand();
+        const s = sim.visitorSeat();
+        return !!s && sim.visitorSit(s.id);
+      },
+      screen: () => {
+        if (!ceoMe || visitMode) return null;
+        const h = renderer.heads.get(VISITOR_ID);
+        if (!h || !h.visible) return null;
+        const p = camera.worldToScreen(h.x, h.y - 2);
+        if (p.x < 0 || p.y < 0 || p.x > camera.viewW || p.y > camera.viewH) return null;
+        return p;
+      },
     },
     visit: {
       setVisitor: (me) => {

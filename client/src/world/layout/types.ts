@@ -85,6 +85,7 @@ export type SpotKind =
   | 'snack'
   | 'fridge'
   | 'cafe_seat'
+  | 'ceo_seat' // assento da sala do CEO: só o personagem que você controla senta (nenhum agente procura este tipo)
   | 'sofa'
   | 'armchair'
   | 'beanbag'

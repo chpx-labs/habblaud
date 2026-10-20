@@ -19,6 +19,11 @@ do meio (0.**3**.0).
   (**+ Chamar…**), cada um fala com uma voz ou um tom, e "Marina, roda os testes" fala com a Marina. A janela se
   arrasta pela barra do título e se redimensiona pelas bordas (duplo clique devolve ao canto). Funciona pelo celular
   com `messages` e `terminal` no `HABBLAUD_REMOTE_ALLOW`.
+- **Ligação com voz natural (OpenAI):** com `HABBLAUD_TTS_OPENAI_KEY` (ou `OPENAI_API_KEY`) no ambiente do
+  servidor, as respostas são faladas pela OpenAI (`gpt-4o-mini-tts`, ou `HABBLAUD_TTS_MODEL`), uma voz para cada
+  agente da ligação; **Voz: Natural / Do navegador** escolhe. Se a OpenAI falhar, a fala sai na voz do navegador. O
+  servidor lê a chave uma vez e a apaga do próprio ambiente, para os agentes que ele abre não a herdarem. Só o texto
+  das respostas vai para a OpenAI; a sua voz continua no Whisper local.
 - **Ditado num idioma só:** com `HABBLAUD_DICTATION_LANGS` de um idioma (ex.: `pt`), o Whisper transcreve direto
   nele, sem detectar a língua: mais rápido, e frases curtas não viram inglês.
 

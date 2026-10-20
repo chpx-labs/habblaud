@@ -19,6 +19,7 @@ import type { SpawnService } from '../spawn/spawn';
 import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../spawn/attachments';
 import type { SpawnFolder } from '../spawn/folders';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
+import { parseTtsRequest, TTS_BODY_MAX, type TtsService } from '../tts/tts';
 import type { DeliveryIndex } from '../deliveries/deliveries';
 import type { FileFetcher } from '../deliveries/fetcher';
 import { HOST_WAIT_MS } from '../host-wait';
@@ -71,6 +72,8 @@ export interface ApiDeps {
   attachments?: AttachmentStore;
   /** Ditado (/api/dictation e, para o auxiliar do host, /api/host/dictation/*; dictation/dictation.ts). */
   dictation?: DictationService;
+  /** Voz natural da ligação (/api/tts; tts/tts.ts). Ausente = a ligação usa a voz do navegador. */
+  tts?: TtsService;
   /** Entregas (GET /api/deliveries e os anexos em /api/deliveries/file/:id; deliveries/deliveries.ts). */
   deliveries?: DeliveryIndex;
   /** Quem lê os arquivos das entregas (e, para o auxiliar do host, /api/host/files/*; deliveries/fetcher.ts). */
@@ -550,6 +553,31 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
         if (info) sendJson(res, 200, info);
         else sendJson(res, 404, { error: tr('ditado desconhecido') });
       } else methodNotAllowed(res, path === '/api/dictation' ? 'GET, POST' : 'GET');
+      return true;
+    }
+    if (path === '/api/tts') {
+      // Voz natural da ligação (tts/tts.ts): a mesma trava das mensagens (a ligação existe para conversar com o agente).
+      const tts = deps.tts;
+      if (!trusted(req, 'messages')) sendJson(res, 403, { error: denied(req, tr('a voz da ligação só funciona pelo próprio computador (http://localhost)')) });
+      else if (isRead) sendJson(res, 200, { available: !!tts, model: tts?.model, voices: tts?.voices ?? [] });
+      else if (method === 'POST') {
+        if (!tts) sendJson(res, 409, { error: tr('voz natural desligada (sem a chave da OpenAI)') });
+        else
+          readJson(req, TTS_BODY_MAX)
+            .then(async (body) => {
+              const parsed = parseTtsRequest(body);
+              if ('error' in parsed) return sendJson(res, 400, { error: parsed.error });
+              let audio: Buffer;
+              try {
+                audio = await tts.synthesize(parsed);
+              } catch (err) {
+                return sendJson(res, 502, { error: (err as Error).message });
+              }
+              res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': audio.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+              res.end(audio);
+            })
+            .catch((err) => fail(res, err));
+      } else methodNotAllowed(res, 'GET, POST');
       return true;
     }
     if (path === '/api/deliveries' || path.startsWith('/api/deliveries/')) {

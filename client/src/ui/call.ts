@@ -25,6 +25,62 @@ export const MAX_PARTIES = 4;
 /** Linhas guardadas no registro da ligação. */
 const LOG_MAX = 40;
 const VOICE_KEY = 'habblaud.call.voice';
+/** Voz escolhida: 'natural' (servidor, OpenAI) ou 'browser'. */
+const VOICE_KIND_KEY = 'habblaud.call.voiceKind';
+/** De quanto em quanto tempo pergunta ao servidor se a voz natural existe. */
+const NATURAL_TTL_MS = 60_000;
+
+type VoiceKind = 'natural' | 'browser';
+
+/** WAV silencioso de 0,05 s (8 kHz, 8 bits): toca dentro de um toque para liberar o áudio no celular. */
+function silentWav(): string {
+  const samples = 400;
+  const bytes = new Uint8Array(44 + samples);
+  const view = new DataView(bytes.buffer);
+  const str = (o: number, s: string) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+  str(0, 'RIFF');
+  view.setUint32(4, 36 + samples, true);
+  str(8, 'WAVE');
+  str(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, 8000, true);
+  view.setUint32(28, 8000, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
+  str(36, 'data');
+  view.setUint32(40, samples, true);
+  bytes.fill(128, 44);
+  let bin = '';
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return `data:audio/wav;base64,${btoa(bin)}`;
+}
+const SILENT_WAV = typeof btoa === 'function' ? silentWav() : '';
+
+function readVoiceKind(): VoiceKind {
+  try {
+    return localStorage.getItem(VOICE_KIND_KEY) === 'browser' ? 'browser' : 'natural';
+  } catch {
+    return 'natural';
+  }
+}
+
+function writeVoiceKind(kind: VoiceKind): void {
+  try {
+    localStorage.setItem(VOICE_KIND_KEY, kind);
+  } catch {
+    // vale só nesta página
+  }
+}
+
+interface SpeechItem {
+  load: Promise<string | null>;
+  text: string;
+  party?: Party;
+  /** Geração da fila: cortar a voz muda a geração e descarta o que estava a caminho. */
+  gen: number;
+}
 /** EventSource.CLOSED. */
 const ES_CLOSED = 2;
 
@@ -81,6 +137,17 @@ export class CallPanel implements UiComponent, CallControl {
   private lastSpoken: { text: string; party: Party } | null = null;
   private log: LogLine[] = [];
   private canDictate = false;
+  /** Voz natural do servidor (GET /api/tts), consultada a cada minuto. */
+  private natural = { available: false, voices: [] as string[], at: 0 };
+  private voiceKind: VoiceKind = readVoiceKind();
+  private naturalWarned = false;
+  private queue: SpeechItem[] = [];
+  private playing = false;
+  private gen = 0;
+  private unlocked = false;
+  private player: HTMLAudioElement = typeof Audio === 'function' ? new Audio() : ({} as HTMLAudioElement);
+  private kindRow: HTMLElement;
+  private kindSel: HTMLSelectElement;
 
   private title: HTMLElement;
   private chips: HTMLElement;
@@ -135,6 +202,21 @@ export class CallPanel implements UiComponent, CallControl {
     });
     this.sendBtn = h('button', { class: 'ui-btn', type: 'button', text: tr('Enviar'), on: { click: () => void this.typed() } });
 
+    // Voz natural (OpenAI, pelo servidor) ou a do navegador: só aparece quando o servidor tem a voz natural.
+    this.kindSel = h(
+      'select',
+      { class: 'ui-call__kind', attrs: { 'aria-label': tr('Voz das respostas') } },
+      h('option', { text: tr('Natural (OpenAI)'), attrs: { value: 'natural' } }),
+      h('option', { text: tr('Do navegador'), attrs: { value: 'browser' } }),
+    );
+    this.kindSel.value = this.voiceKind;
+    this.kindSel.addEventListener('change', () => {
+      this.voiceKind = this.kindSel.value === 'browser' ? 'browser' : 'natural';
+      writeVoiceKind(this.voiceKind);
+      this.stopVoice();
+    });
+    this.kindRow = h('label', { class: 'ui-call__kind-row', hidden: true }, h('span', { text: tr('Voz:') }), this.kindSel);
+
     this.el = h(
       'section',
       { class: 'ui-call', hidden: true, attrs: { 'aria-label': tr('Ligação com os agentes') } },
@@ -144,6 +226,7 @@ export class CallPanel implements UiComponent, CallControl {
       this.status,
       h('div', { class: 'ui-call__controls' }, this.talk.el, this.voiceBtn, this.repeatBtn),
       this.noMic,
+      this.kindRow,
       h('div', { class: 'ui-call__type' }, this.input, this.sendBtn),
     );
     this.syncVoiceBtn();
@@ -155,6 +238,8 @@ export class CallPanel implements UiComponent, CallControl {
       load();
       speechSynthesis.addEventListener?.('voiceschanged', load);
     }
+    // Já sabe se há voz natural antes da primeira ligação (a saudação sai nela).
+    if (typeof fetch === 'function') this.loadNatural();
   }
 
   get isOpen(): boolean {
@@ -190,6 +275,7 @@ export class CallPanel implements UiComponent, CallControl {
     const many = this.parties.size > 1;
     this.addLog({ kind: 'info', text: many ? tr('{0} entrou na ligação.', [a.name]) : tr('Ligação com {0}.', [a.name]) });
     // Dentro do clique: libera a voz no celular (o iPhone só fala se a primeira fala nasce de um toque).
+    this.unlockAudio();
     this.speak(many ? tr('{0} na linha.', [a.name]) : tr('Ligação com {0}.', [a.name]), party);
     setHidden(this.el, false);
     this.ctx.invalidate();
@@ -238,6 +324,9 @@ export class CallPanel implements UiComponent, CallControl {
     });
     setHidden(this.talk.el, !this.canDictate);
     setHidden(this.noMic, this.canDictate);
+    this.loadNatural();
+    setHidden(this.kindRow, !this.natural.available);
+    if (this.kindSel.value !== this.voiceKind) this.kindSel.value = this.voiceKind;
     const name = this.target ? this.parties.get(this.target)?.name ?? '' : '';
     this.input.placeholder = tr('Escrever para {0}…', [name]);
     this.repeatBtn.disabled = !this.lastSpoken;
@@ -326,6 +415,7 @@ export class CallPanel implements UiComponent, CallControl {
     this.log = [];
     this.logEl.replaceChildren();
     this.lastSpoken = null;
+    this.naturalWarned = false;
     this.nextIndex = 0;
     this.say('');
     setHidden(this.el, true);
@@ -392,24 +482,152 @@ export class CallPanel implements UiComponent, CallControl {
 
   // ---------------------------------------------------------------- voz
 
+  /** Fala o texto: na voz natural (servidor) quando ela existe e está escolhida; senão, na do navegador. */
   private speak(text: string, p?: Party): void {
-    if (!this.voiceOn || !text || typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return;
+    if (!this.voiceOn || !text) return;
+    if (this.useNatural()) {
+      // Já pede o áudio agora: enquanto uma fala toca, a próxima vai sendo gerada.
+      this.queue.push({ load: this.fetchNatural(text, p), text, party: p, gen: this.gen });
+      void this.pump();
+    } else this.browserSpeak(text, p);
+  }
+
+  private useNatural(): boolean {
+    return this.natural.available && this.voiceKind === 'natural';
+  }
+
+  /** Voz natural do participante: as vozes do servidor espalhadas pela posição na ligação. */
+  private naturalVoice(p?: Party): string | undefined {
+    const list = this.natural.voices;
+    return list.length ? list[(p?.index ?? 0) % list.length] : undefined;
+  }
+
+  /** Áudio (URL de objeto) da voz natural; null = falhou (a fala sai na voz do navegador). */
+  private async fetchNatural(text: string, p?: Party): Promise<string | null> {
+    try {
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: this.naturalVoice(p), lang: speechLang() }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        this.naturalFailed(body.error ?? tr('erro {0}', [res.status]));
+        return null;
+      }
+      return URL.createObjectURL(await res.blob());
+    } catch {
+      this.naturalFailed(tr('o Habblaud não respondeu'));
+      return null;
+    }
+  }
+
+  /** Avisa uma vez por ligação que a voz natural falhou (as falas seguem na do navegador). */
+  private naturalFailed(reason: string): void {
+    if (this.naturalWarned) return;
+    this.naturalWarned = true;
+    this.addLog({ kind: 'error', text: tr('Voz natural falhou ({0}): usando a do navegador.', [reason]) });
+  }
+
+  /** Toca a fila em ordem, uma fala por vez. */
+  private async pump(): Promise<void> {
+    if (this.playing) return;
+    const item = this.queue.shift();
+    if (!item) return;
+    this.playing = true;
+    const url = await item.load;
+    // Cortaram a voz (Falar, Mudo, Encerrar) enquanto o áudio chegava: descarta.
+    if (item.gen !== this.gen) {
+      if (url) URL.revokeObjectURL(url);
+      return;
+    }
+    const next = () => {
+      if (url) URL.revokeObjectURL(url);
+      if (item.gen !== this.gen) return;
+      this.playing = false;
+      void this.pump();
+    };
+    if (!url) {
+      this.browserSpeak(item.text, item.party, next);
+      return;
+    }
+    const player = this.player;
+    player.onended = next;
+    player.onerror = () => {
+      player.onerror = null;
+      this.browserSpeak(item.text, item.party, next);
+    };
+    player.src = url;
+    player.play().catch(() => {
+      // Navegador bloqueou o áudio (sem toque antes, no celular): a do navegador tenta no lugar.
+      player.onended = null;
+      this.browserSpeak(item.text, item.party, next);
+    });
+  }
+
+  private browserSpeak(text: string, p?: Party, done?: () => void): void {
+    if (typeof speechSynthesis === 'undefined' || typeof SpeechSynthesisUtterance === 'undefined') return done?.();
     const lang = speechLang();
     if (!this.voices.length) this.voices = speechSynthesis.getVoices();
     const voice = p ? pickVoice(this.voices, lang, p.index) : voicesFor(this.voices, lang)[0];
     const style = p ? voiceStyle(p.seed, p.index, voicesFor(this.voices, lang).length) : { pitch: 1, rate: 1.05 };
-    for (const piece of chunks(text)) {
+    const pieces = chunks(text);
+    if (!pieces.length) return done?.();
+    pieces.forEach((piece, i) => {
       const u = new SpeechSynthesisUtterance(piece);
       u.lang = voice?.lang ?? lang;
       if (voice) u.voice = voice as SpeechSynthesisVoice;
       u.pitch = style.pitch;
       u.rate = style.rate;
+      if (i === pieces.length - 1 && done) {
+        u.onend = done;
+        u.onerror = done;
+      }
       speechSynthesis.speak(u);
-    }
+    });
   }
 
   private stopVoice(): void {
+    this.gen++;
+    for (const item of this.queue.splice(0)) void item.load.then((url) => url && URL.revokeObjectURL(url));
+    this.playing = false;
+    this.player.onended = null;
+    this.player.onerror = null;
+    this.player.pause();
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+  }
+
+  /**
+   * Dentro de um toque: libera o áudio no celular (o iPhone só toca sem toque depois que um áudio tocou num toque).
+   * Um WAV silencioso de 0,05 s.
+   */
+  private unlockAudio(): void {
+    if (this.unlocked) return;
+    this.unlocked = true;
+    const p = this.player;
+    p.src = SILENT_WAV;
+    p.play().then(
+      () => p.pause(),
+      () => (this.unlocked = false),
+    );
+  }
+
+  private loadNatural(): void {
+    const now = Date.now();
+    if (now - this.natural.at < NATURAL_TTL_MS) return;
+    this.natural.at = now;
+    void fetch('/api/tts', { credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? (r.json() as Promise<{ available?: boolean; voices?: unknown }>) : null))
+      .then((body) => {
+        const available = body?.available === true;
+        const voices = Array.isArray(body?.voices) ? body.voices.filter((v): v is string => typeof v === 'string') : [];
+        if (available === this.natural.available && voices.join() === this.natural.voices.join()) return;
+        this.natural.available = available;
+        this.natural.voices = voices;
+        this.ctx.invalidate();
+      })
+      .catch(() => undefined);
   }
 
   private toggleVoice(): void {

@@ -11364,6 +11364,28 @@ html.is-replay #world {
   height: 44px;
 }
 
+.ui-call__kind-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ui-call__kind-row[hidden] {
+  display: none;
+}
+
+.ui-call__kind {
+  height: 26px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-soft);
+  color: var(--ui-text);
+  font: 12px var(--font-ui);
+  padding: 0 6px;
+}
+
 .ui-call__hint {
   margin: 0;
   color: var(--ui-muted);

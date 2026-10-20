@@ -58,7 +58,11 @@ import { OwnerSocial } from './world/social';
 import { BuildingTokens } from './world/tokens';
 import { BuildingUplink } from './world/uplink';
 import { WorldViewer } from './world/viewer';
+import { ttsFromEnv } from './tts/tts';
 
+// Voz natural da ligação: lê a chave da OpenAI e a apaga do ambiente ANTES de qualquer processo filho (terminal
+// interativo, Novo agente, Whisper) nascer, para nenhum deles a herdar.
+const tts = ttsFromEnv();
 const config = loadConfig();
 const startedAt = Date.now();
 
@@ -362,6 +366,7 @@ const api = createApiHandler({
   spawn,
   attachments,
   dictation,
+  tts: config.messages ? tts : undefined,
   deliveries,
   files: deliveryFiles,
   spawnFolders: async () => {
@@ -503,6 +508,16 @@ server.listen(config.port, config.host, () => {
         : spawnBin
           ? tr('   Novo agente: ligado ({0} --bg; pasta ainda não confiável abre no app do Claude).', [spawnBin])
           : tr('   Novo agente: ligado, só pelo app do Claude (claude não encontrado no PATH).'),
+  );
+  log.info(
+    dictation?.available()
+      ? tr('   Ditado: ligado (Whisper local).')
+      : tr('   Ditado: desligado (whisper-cli, ffmpeg e um modelo; veja HABBLAUD_WHISPER_*).'),
+  );
+  log.info(
+    tts && config.messages
+      ? tr('   Voz natural da ligação: ligada (OpenAI, {0}).', [tts.model])
+      : tr('   Voz natural da ligação: desligada (sem HABBLAUD_TTS_OPENAI_KEY; a ligação usa a voz do navegador).'),
   );
   log.info(timeline ? tr('   Linha do tempo (timelapse): gravando em {0}.', [timelineDir]) : tr('   Linha do tempo (timelapse): gravação desligada (HABBLAUD_TIMELINE).'));
   log.info(tr('   Responder pelo escritório: {0}.', [config.terminal ? tr('ligado (precisa do mod: npm run mod:install; ou do hook antigo: npm run hooks:install)') : tr('desligado (mesma trava do terminal)')]));

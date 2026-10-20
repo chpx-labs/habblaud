@@ -369,6 +369,7 @@ const api = createApiHandler({
   tts: config.messages ? tts : undefined,
   deliveries,
   files: deliveryFiles,
+  companyDir: config.companyDir,
   spawnFolders: async () => {
     const snap = hub.current();
     const last = new Map<string, number>();

@@ -20,11 +20,14 @@ import { ATTACHMENT_BODY_MAX, parseAttachment, type AttachmentStore } from '../s
 import type { SpawnFolder } from '../spawn/folders';
 import { AUDIO_BODY_MAX, type DictationService } from '../dictation/dictation';
 import { parseTtsRequest, TTS_BODY_MAX, type TtsService } from '../tts/tts';
+import { readCompanyRequests } from '../company/requests';
 import type { DeliveryIndex } from '../deliveries/deliveries';
 import type { FileFetcher } from '../deliveries/fetcher';
 import { HOST_WAIT_MS } from '../host-wait';
 
 export interface ApiDeps {
+  /** Pasta da empresa (HABBLAUD_COMPANY_DIR): GET /api/company/requests lista os pedidos entre setores. */
+  companyDir?: string;
   office: Office;
   hub: Hub;
   accounts: AccountsService;
@@ -579,6 +582,13 @@ export function createApiHandler(deps: ApiDeps): (req: IncomingMessage, res: Ser
             })
             .catch((err) => fail(res, err));
       } else methodNotAllowed(res, 'GET, POST');
+      return true;
+    }
+    if (path === '/api/company/requests') {
+      // Pedidos entre setores (company/requests.ts): só leitura, como o escritório.
+      if (!isRead) methodNotAllowed(res, 'GET');
+      else if (!deps.companyDir) sendJson(res, 404, { error: tr('pedidos entre setores desligados (HABBLAUD_COMPANY_DIR)') });
+      else readCompanyRequests(deps.companyDir).then((r) => sendJson(res, 200, r), (err) => fail(res, err));
       return true;
     }
     if (path === '/api/deliveries' || path.startsWith('/api/deliveries/')) {

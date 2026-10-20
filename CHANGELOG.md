@@ -12,6 +12,9 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Renomear salas pelo acesso remoto.** `rooms` em `HABBLAUD_REMOTE_ALLOW` libera renomear salas (o nome da placa)
+  pelo celular ou pelo Tailscale com login; sem ele, continua só pelo próprio computador.
+
 - **Placa da recepção com a marca CHPX.** A placa sobre os elevadores mostra o logo da CHPX em pixel art (seta dourada
   e "CHPX"), gerado a partir do logo de chpx.io (`assets/brand/chpx-signage.png`, 72x20, e a versão @4x).
 

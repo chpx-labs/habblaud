@@ -515,6 +515,18 @@ describe('porta remota', () => {
     expect((await request(viewOnly.remoteBase, '/api/snapshot', { headers: { Cookie: c2 } })).status).toBe(200);
   });
 
+  it('HABBLAUD_REMOTE_ALLOW=rooms libera renomear salas pela porta remota (e o /api/access avisa)', async () => {
+    const h = await start(['rooms']);
+    const cookie = await login(h.remoteBase);
+    const r = await request(h.remoteBase, '/api/rooms/rename', { method: 'POST', headers: { Cookie: cookie }, body: { id: 'r', name: 'n' } });
+    expect(r.status).toBe(200);
+    const acc = JSON.parse((await request(h.remoteBase, '/api/access', { headers: { Cookie: cookie } })).body);
+    expect(acc).toMatchObject({ remote: true, rooms: true, messages: false });
+    const without = await start();
+    const c2 = await login(without.remoteBase);
+    expect(JSON.parse((await request(without.remoteBase, '/api/access', { headers: { Cookie: c2 } })).body).rooms).toBe(false);
+  });
+
   it('login de outra origem é barrado pelo guard (CSRF)', async () => {
     const h = await start();
     const r = await request(h.remoteBase, '/api/remote/login', { method: 'POST', headers: { Origin: 'http://evil.example' }, body: CREDS });
@@ -584,9 +596,10 @@ describe('GET /api/access (o que a página pode fazer)', () => {
       messages: false,
       terminal: false,
       spawn: false,
+      rooms: false,
       world: false,
     });
-    expect(JSON.parse((await request(h.localBase, '/api/access')).body)).toEqual({ remote: false, local: true, permissions: true, messages: true, terminal: false, spawn: true, world: true });
+    expect(JSON.parse((await request(h.localBase, '/api/access')).body)).toEqual({ remote: false, local: true, permissions: true, messages: true, terminal: false, spawn: true, rooms: true, world: true });
     expect(JSON.parse((await request(h.localBase, '/api/access', { headers: { Host: '192.168.1.5:4747' } })).body)).toMatchObject({
       local: false,
       permissions: false,

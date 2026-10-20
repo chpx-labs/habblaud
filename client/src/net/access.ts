@@ -25,7 +25,7 @@ export function isLoopbackHostname(hostname: string): boolean {
 
 export function fallbackAccess(hostname: string): AccessInfo {
   const local = isLoopbackHostname(hostname);
-  return { remote: false, local, permissions: local, messages: local, terminal: local, spawn: false };
+  return { remote: false, local, permissions: local, messages: local, terminal: local, spawn: false, rooms: local };
 }
 
 /** Prazo do GET /api/access (a página não fica esperando para conectar). */

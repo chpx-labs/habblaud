@@ -722,7 +722,7 @@ Tudo funciona sem configurar nada. Se precisar ajustar, use variáveis de ambien
 | `HABBLAUD_TERMINAL` | ligado (só com acesso local) | `0` desliga o terminal, responder e mandar mensagens pelo escritório e o editor de personagem. Com a porta exposta eles já ficam desligados, sem opção de ligar. |
 | `HABBLAUD_PTY` | desligado | `1` liga o terminal interativo (abrir, assumir e encerrar sessões do Claude Code pelo escritório; só com acesso local e fora do Docker) e o **Novo agente** (também no Docker, pelo `npm run codex:bridge`). Leia o aviso em [Privacidade e segurança](#privacidade-e-segurança). |
 | `HABBLAUD_CLAUDE_BIN` | `claude` do PATH | O executável do Claude Code que o terminal interativo e o Novo agente rodam. |
-| `HABBLAUD_REMOTE_ALLOW` | `permissions` | O que o [celular com login](#celular-com-login-e-https-aprovando-pedidos) pode fazer: `permissions`, `messages`, `terminal`, `spawn` (separados por vírgula) ou `none`. Os outros `HABBLAUD_REMOTE_*` são escritos pelo `npm run remote:setup`. |
+| `HABBLAUD_REMOTE_ALLOW` | `permissions` | O que o [celular com login](#celular-com-login-e-https-aprovando-pedidos) pode fazer: `permissions`, `messages`, `terminal`, `spawn`, `rooms` (separados por vírgula) ou `none`. Os outros `HABBLAUD_REMOTE_*` são escritos pelo `npm run remote:setup`. |
 | `HABBLAUD_MENSAGENS` | ligado (com o terminal) | `0` desliga só as mensagens pelo escritório (a caixa no terminal e nos detalhes do agente). |
 | `HABBLAUD_CODEX` | ligado | `0` desliga o Codex no escritório. |
 | `HABBLAUD_CODEX_DIRS` | detecção automática | Pastas do Codex, separadas por vírgula (no lugar de `~/.codex*` e `CODEX_HOME`). |

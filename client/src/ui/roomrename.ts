@@ -11,7 +11,7 @@ const NAME_MAX = 40;
 
 /**
  * Dá para renomear esta sala daqui? O servidor recusa as de demonstração, quem não abriu o Habblaud pelo próprio
- * computador e o Habblaud exposto na rede (sem a trava do terminal); no modo mock e no timelapse não há servidor para
+ * computador (pela porta remota, só com "rooms" no HABBLAUD_REMOTE_ALLOW) e o Habblaud exposto na rede (sem a trava do terminal); no modo mock e no timelapse não há servidor para
  * gravar.
  */
 export function canRenameRoom(ctx: UiContext, roomId: string): boolean {
@@ -21,7 +21,7 @@ export function canRenameRoom(ctx: UiContext, roomId: string): boolean {
     !ctx.store.mock &&
     !ctx.store.replaying &&
     !!ctx.store.snapshot?.meta.terminal &&
-    access().local
+    (access().rooms ?? access().local)
   );
 }
 

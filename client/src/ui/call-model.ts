@@ -157,3 +157,43 @@ export function chunks(text: string, max = CHUNK_MAX): string[] {
   if (cur.trim()) out.push(cur.trim());
   return out.filter(Boolean);
 }
+
+/** O que a ligação lê: só a resposta final de cada demanda (padrão) ou cada texto do agente no caminho. */
+export type Narrate = 'final' | 'all';
+
+export interface ReplyPart {
+  id: string;
+  md: string;
+}
+
+/** O agente ainda está no meio da demanda (trabalhando, ou parado num pedido seu no meio dela)? */
+export function midTurn(status: AgentStatus | undefined): boolean {
+  return status === 'working' || status === 'waiting';
+}
+
+/**
+ * Modo "só a resposta final": um texto do agente seguido de uma ação (ferramenta) era só um passo e some; o que
+ * sobra quando ele termina a demanda é a resposta. `busy` = midTurn do agente quando a entrada chegou.
+ * Devolve o que continua guardado e o que já pode ser mostrado/lido (vazio enquanto ele trabalha).
+ */
+export function finalReplyStep(
+  pending: readonly ReplyPart[],
+  e: { kind: string; id: string; text?: string },
+  busy: boolean,
+): { pending: ReplyPart[]; emit: ReplyPart[] } {
+  if (e.kind === 'assistant') {
+    const next = [...pending, { id: e.id, md: e.text ?? '' }];
+    return busy ? { pending: next, emit: [] } : { pending: [], emit: next };
+  }
+  // Ação depois do texto (era um passo) ou prompt novo (outra demanda): o guardado não é resposta.
+  if (e.kind === 'tool' || e.kind === 'user') return { pending: [], emit: [] };
+  return { pending: [...pending], emit: [] };
+}
+
+/** Junta as partes da resposta final num texto só (às vezes ela vem em mais de um bloco seguido). */
+export function joinReply(parts: readonly ReplyPart[]): string {
+  return parts
+    .map((p) => p.md.trim())
+    .filter(Boolean)
+    .join('\n\n');
+}

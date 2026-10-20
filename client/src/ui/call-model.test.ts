@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addressedTo, chunks, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker } from './call-model';
+import { addressedTo, chunks, finalReplyStep, joinReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker } from './call-model';
 
 describe('speakableText', () => {
   it('tira blocos de código, tabelas e links', () => {
@@ -115,5 +115,37 @@ describe('chunks', () => {
     const out = chunks('a'.repeat(50), 20);
     expect(out).toHaveLength(3);
     expect(out.every((c) => c.length <= 20)).toBe(true);
+  });
+});
+
+describe('só a resposta final', () => {
+  const a = (id: string, text: string) => ({ kind: 'assistant', id, text });
+  const tool = { kind: 'tool', id: 't' };
+
+  it('texto seguido de ação era um passo e some; o último texto da demanda sai quando ela termina', () => {
+    let s = finalReplyStep([], a('1', 'Vou rodar os testes.'), true);
+    expect(s.emit).toEqual([]);
+    s = finalReplyStep(s.pending, tool, true);
+    expect(s.pending).toEqual([]);
+    s = finalReplyStep(s.pending, a('2', 'Pronto: **tudo passando**.'), true);
+    expect(s.emit).toEqual([]);
+    expect(joinReply(s.pending)).toBe('Pronto: **tudo passando**.');
+  });
+
+  it('texto que chega com o agente já parado sai na hora, junto com o que estava guardado', () => {
+    const s = finalReplyStep([{ id: '1', md: 'Primeira parte.' }], a('2', 'Segunda parte.'), false);
+    expect(s.pending).toEqual([]);
+    expect(joinReply(s.emit)).toBe('Primeira parte.\n\nSegunda parte.');
+  });
+
+  it('prompt novo descarta o guardado; raciocínio e resultados não mexem', () => {
+    expect(finalReplyStep([{ id: '1', md: 'x' }], { kind: 'user', id: 'u' }, true).pending).toEqual([]);
+    expect(finalReplyStep([{ id: '1', md: 'x' }], { kind: 'thinking', id: 'th' }, true).pending).toHaveLength(1);
+  });
+
+  it('meio da demanda = trabalhando ou esperando você', () => {
+    expect(midTurn('working')).toBe(true);
+    expect(midTurn('waiting')).toBe(true);
+    for (const s of ['idle', 'shell', 'done', 'offline', undefined] as const) expect(midTurn(s)).toBe(false);
   });
 });

@@ -3346,4 +3346,8 @@ export const ES: Readonly<Record<string, string>> = {
   "Após 15 min parados": "Tras 15 min parados",
   "Logo": "Enseguida",
   "Mostrar tudo ({0} linhas)": "Mostrar todo ({0} líneas)",
+  "O que a ligação lê": "Lo que lee la llamada",
+  "Só a resposta final": "Solo la respuesta final",
+  "Tudo, passo a passo": "Todo, paso a paso",
+  "Ler:": "Leer:",
 };

@@ -11,7 +11,7 @@ import { MESSAGE_MAX } from '../../../shared/messages';
 import type { AgentInfo, AgentStatus, TerminalEntry } from '../../../shared/types';
 import { tr } from '../../../shared/i18n';
 import { access } from '../net/access';
-import { addressedTo, chunks, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker, type VoiceLike } from './call-model';
+import { addressedTo, chunks, finalReplyStep, joinReply, midTurn, pickVoice, seedOf, speakableText, voicesFor, voiceStyle, waitingAnnouncement, withSpeaker, type Narrate, type ReplyPart, type VoiceLike } from './call-model';
 import { composerMode, messageText } from './composer-model';
 import type { CallControl, UiComponent, UiContext } from './context';
 import { DictationButton, dictationAvailable } from './dictation';
@@ -28,6 +28,24 @@ const LOG_MAX = 40;
 const VOICE_KEY = 'habblaud.call.voice';
 /** Voz escolhida: 'natural' (servidor, OpenAI) ou 'browser'. */
 const VOICE_KIND_KEY = 'habblaud.call.voiceKind';
+/** O que a ligação lê: 'final' (só a resposta de cada demanda) ou 'all' (cada texto no caminho). */
+const NARRATE_KEY = 'habblaud.call.narrate';
+
+function readNarrate(): Narrate {
+  try {
+    return localStorage.getItem(NARRATE_KEY) === 'all' ? 'all' : 'final';
+  } catch {
+    return 'final';
+  }
+}
+
+function writeNarrate(n: Narrate): void {
+  try {
+    localStorage.setItem(NARRATE_KEY, n);
+  } catch {
+    // vale só nesta página
+  }
+}
 /** De quanto em quanto tempo pergunta ao servidor se a voz natural existe. */
 const NATURAL_TTL_MS = 60_000;
 
@@ -96,6 +114,8 @@ interface Party {
   seen: Set<string>;
   status: AgentStatus | undefined;
   listening: 'connecting' | 'open' | 'failed';
+  /** Modo 'final': textos da demanda em andamento, guardados até ela terminar (call-model.ts, finalReplyStep). */
+  pending: ReplyPart[];
 }
 
 type LogKind = 'me' | 'agent' | 'info' | 'error';
@@ -187,6 +207,9 @@ export class CallPanel implements UiComponent, CallControl {
   private unlocked = false;
   private player: HTMLAudioElement = typeof Audio === 'function' ? new Audio() : ({} as HTMLAudioElement);
   private kindRow: HTMLElement;
+  private narrate: Narrate = readNarrate();
+  private narrateSel: HTMLSelectElement;
+  private optsRow: HTMLElement;
   private kindSel: HTMLSelectElement;
 
   private title: HTMLElement;
@@ -256,6 +279,24 @@ export class CallPanel implements UiComponent, CallControl {
       this.stopVoice();
     });
     this.kindRow = h('label', { class: 'ui-call__kind-row', hidden: true }, h('span', { text: tr('Voz:') }), this.kindSel);
+    // Só a resposta final de cada demanda (padrão) ou cada texto do agente no caminho.
+    this.narrateSel = h(
+      'select',
+      { class: 'ui-call__kind', attrs: { 'aria-label': tr('O que a ligação lê') } },
+      h('option', { text: tr('Só a resposta final'), attrs: { value: 'final' } }),
+      h('option', { text: tr('Tudo, passo a passo'), attrs: { value: 'all' } }),
+    );
+    this.narrateSel.value = this.narrate;
+    this.narrateSel.addEventListener('change', () => {
+      this.narrate = this.narrateSel.value === 'all' ? 'all' : 'final';
+      writeNarrate(this.narrate);
+    });
+    this.optsRow = h(
+      'div',
+      { class: 'ui-call__opts' },
+      h('label', { class: 'ui-call__kind-row' }, h('span', { text: tr('Ler:') }), this.narrateSel),
+      this.kindRow,
+    );
 
     this.el = h(
       'section',
@@ -266,7 +307,7 @@ export class CallPanel implements UiComponent, CallControl {
       this.status,
       h('div', { class: 'ui-call__controls' }, this.talk.el, this.voiceBtn, this.repeatBtn),
       this.noMic,
-      this.kindRow,
+      this.optsRow,
       h('div', { class: 'ui-call__type' }, this.input, this.sendBtn),
     );
     this.syncVoiceBtn();
@@ -306,7 +347,7 @@ export class CallPanel implements UiComponent, CallControl {
       this.say(tr('A ligação já tem {0} agentes: tire alguém antes.', [MAX_PARTIES]), true);
       return;
     }
-    const party: Party = { id: a.id, name: a.name, index: this.nextIndex++, seed: seedOf(a.id), source: null, seen: new Set(), status: a.status, listening: 'connecting' };
+    const party: Party = { id: a.id, name: a.name, index: this.nextIndex++, seed: seedOf(a.id), source: null, seen: new Set(), status: a.status, listening: 'connecting', pending: [] };
     this.parties.set(a.id, party);
     this.target = a.id;
     this.listen(party);
@@ -346,6 +387,8 @@ export class CallPanel implements UiComponent, CallControl {
         this.speak(note, p);
       }
       p.status = a.status;
+      // Modo 'final': a demanda terminou e o texto guardado é a resposta.
+      if (p.pending.length && !midTurn(a.status)) this.emitReply(p, p.pending.splice(0));
       p.name = a.name;
     }
     if (!this.parties.size) {
@@ -516,15 +559,26 @@ export class CallPanel implements UiComponent, CallControl {
     for (const e of entries) {
       if (p.seen.has(e.id)) continue;
       p.seen.add(e.id);
-      if (e.kind !== 'assistant') continue;
-      // Na tela, a resposta inteira e formatada; na voz, a versão limpa (sem código nem links), quando sobra algo.
-      const text = speakableText(e.text);
-      this.addLog({ kind: 'agent', who: p.name, text, md: e.text });
-      if (!text) continue;
-      this.speak(withSpeaker(text, p.name, many), p);
-      this.lastSpoken = { text: withSpeaker(text, p.name, many), party: p };
+      if (this.narrate === 'all') {
+        if (e.kind === 'assistant') this.emitReply(p, [{ id: e.id, md: e.text }], many);
+        continue;
+      }
+      const step = finalReplyStep(p.pending, e, midTurn(p.status));
+      p.pending = step.pending;
+      if (step.emit.length) this.emitReply(p, step.emit, many);
     }
     this.ctx.invalidate();
+  }
+
+  /** Mostra (formatada) e fala (a versão limpa, quando sobra algo) uma resposta do agente. */
+  private emitReply(p: Party, parts: readonly ReplyPart[], many = this.parties.size > 1): void {
+    const md = joinReply(parts);
+    if (!md) return;
+    const text = speakableText(md);
+    this.addLog({ kind: 'agent', who: p.name, text, md });
+    if (!text) return;
+    this.speak(withSpeaker(text, p.name, many), p);
+    this.lastSpoken = { text: withSpeaker(text, p.name, many), party: p };
   }
 
   // ---------------------------------------------------------------- voz

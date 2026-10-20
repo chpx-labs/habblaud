@@ -11329,6 +11329,62 @@ html.is-replay #world {
   font-size: 12px;
 }
 
+/* Resposta do agente formatada como no terminal (ui/markdown.ts). */
+.ui-call__line.is-agent {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-call__who {
+  font-size: 12px;
+  color: var(--ui-accent);
+}
+
+.ui-call__md {
+  font-size: 13px;
+  line-height: 1.45;
+  min-width: 0;
+}
+
+.ui-call__md .ui-md__block {
+  position: relative;
+}
+
+.ui-call__md .ui-md__pre {
+  overflow-x: auto;
+}
+
+.ui-call__md .ui-md__block.is-folded .ui-md__pre {
+  max-height: calc(8 * 1.45em);
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+
+.ui-call__code-tools {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.ui-call__code-btn {
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-soft);
+  color: var(--ui-muted);
+  font: 11.5px var(--font-ui);
+  cursor: pointer;
+}
+
+.ui-call__code-btn:hover {
+  color: var(--ui-text);
+  background: var(--ui-bg-hover);
+}
+
 .ui-call__status {
   min-height: 1.4em;
   margin: 0;

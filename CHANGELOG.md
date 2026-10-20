@@ -19,6 +19,10 @@ do meio (0.**3**.0).
   (**+ Chamar…**), cada um fala com uma voz ou um tom, e "Marina, roda os testes" fala com a Marina. A janela se
   arrasta pela barra do título e se redimensiona pelas bordas (duplo clique devolve ao canto). Funciona pelo celular
   com `messages` e `terminal` no `HABBLAUD_REMOTE_ALLOW`.
+- **Ligação: respostas formatadas como no terminal.** O painel mostra a resposta inteira com negrito, listas,
+  títulos e blocos de código (cada um com **Copiar**; os longos aparecem recolhidos com **Mostrar tudo**). A voz
+  continua lendo a versão sem código nem links. Um agente ocupado não sai mais da ligação quando a caixa de entrada
+  some por alguns segundos, e dá para ligar para quem está no meio de um comando longo.
 - **Ligação com voz natural (OpenAI):** com `HABBLAUD_TTS_OPENAI_KEY` (ou `OPENAI_API_KEY`) no ambiente do
   servidor, as respostas são faladas pela OpenAI (`gpt-4o-mini-tts`, ou `HABBLAUD_TTS_MODEL`), uma voz para cada
   agente da ligação; **Voz: Natural / Do navegador** escolhe. Se a OpenAI falhar, a fala sai na voz do navegador. O

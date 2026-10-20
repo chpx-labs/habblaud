@@ -15,7 +15,8 @@ import { addressedTo, chunks, pickVoice, seedOf, speakableText, voicesFor, voice
 import { composerMode, messageText } from './composer-model';
 import type { CallControl, UiComponent, UiContext } from './context';
 import { DictationButton, dictationAvailable } from './dictation';
-import { h, iconButton, setHidden, setText } from './dom';
+import { copyText, h, iconButton, setHidden, setText } from './dom';
+import { renderMarkdown } from './markdown';
 import { ICONS } from './icons';
 import { Movable } from './movable';
 import { parseAppend, parseInit, terminalUrl } from './terminal';
@@ -103,6 +104,8 @@ interface LogLine {
   kind: LogKind;
   who?: string;
   text: string;
+  /** Resposta do agente em markdown: mostrada formatada, como no terminal (a voz lê `text`). */
+  md?: string;
 }
 
 function readVoicePref(): boolean {
@@ -124,6 +127,43 @@ function writeVoicePref(on: boolean): void {
 function speechLang(): string {
   const l = (typeof navigator !== 'undefined' && navigator.language) || 'pt-BR';
   return /^pt/i.test(l) ? 'pt-BR' : l;
+}
+
+/** Bloco de código com mais linhas que isto aparece recolhido (com Mostrar tudo). */
+export const CODE_FOLD_LINES = 8;
+
+/**
+ * Resposta do agente formatada como no terminal (ui/markdown.ts: negrito, listas, títulos, código). Cada bloco de
+ * código ganha Copiar e, se for longo, aparece recolhido com Mostrar tudo.
+ */
+function formatted(md: string): HTMLElement {
+  const box = h('div', { class: 'ui-md ui-call__md' });
+  box.append(renderMarkdown(md));
+  for (const block of box.querySelectorAll<HTMLElement>('.ui-md__block')) {
+    const pre = block.querySelector('pre');
+    if (!pre) continue;
+    const code = pre.textContent ?? '';
+    const tools = h('div', { class: 'ui-call__code-tools' });
+    const copy = h('button', { class: 'ui-call__code-btn', type: 'button', text: tr('Copiar') });
+    copy.addEventListener('click', async () => {
+      const ok = await copyText(code);
+      setText(copy, ok ? tr('Copiado!') : tr('Não foi possível copiar'));
+      setTimeout(() => setText(copy, tr('Copiar')), 1500);
+    });
+    tools.append(copy);
+    const lines = code.split('\n').length;
+    if (lines > CODE_FOLD_LINES) {
+      block.classList.add('is-folded');
+      const more = h('button', { class: 'ui-call__code-btn', type: 'button', text: tr('Mostrar tudo ({0} linhas)', [lines]) });
+      more.addEventListener('click', () => {
+        const folded = block.classList.toggle('is-folded');
+        setText(more, folded ? tr('Mostrar tudo ({0} linhas)', [lines]) : tr('Recolher'));
+      });
+      tools.append(more);
+    }
+    block.append(tools);
+  }
+  return box;
 }
 
 export class CallPanel implements UiComponent, CallControl {
@@ -291,7 +331,10 @@ export class CallPanel implements UiComponent, CallControl {
     // Quem saiu do escritório (ou deixou de aceitar mensagens) sai da ligação; quem passou a precisar de você é avisado.
     for (const p of [...this.parties.values()]) {
       const a = this.ctx.agent(p.id);
-      if (!a || !this.callable(a)) {
+      // Só sai da ligação quem saiu do escritório. A caixa de entrada pode sumir por alguns segundos com o agente
+      // ocupado (o plugin dá sinal de vida a cada 2 s, e um comando longo atrasa isso): ele continua na ligação, e
+      // uma mensagem mandada nesse meio-tempo volta com o motivo.
+      if (!a || a.status === 'offline' || this.ctx.store.replaying) {
         this.addLog({ kind: 'info', text: tr('{0} saiu da ligação.', [p.name]) });
         this.speak(tr('{0} saiu da ligação.', [p.name]), p);
         this.drop(p.id);
@@ -335,13 +378,16 @@ export class CallPanel implements UiComponent, CallControl {
 
   // ---------------------------------------------------------------- participantes
 
+  /**
+   * Dá para ligar: principal ao vivo, com as mensagens liberadas daqui. 'hint' também vale: a caixa de entrada some
+   * enquanto o agente está ocupado num comando longo (o plugin atrasa o sinal de vida), e é justamente quando se quer
+   * acompanhá-lo; uma mensagem que não puder entrar volta com o motivo.
+   */
   private callable(a: AgentInfo | undefined): boolean {
     const store = this.ctx.store;
-    return (
-      !!a &&
-      a.kind === 'main' &&
-      composerMode(a, { enabled: store.mock || !!store.snapshot?.meta.messages, local: store.mock || access().messages, replaying: store.replaying }).kind === 'ready'
-    );
+    if (!a || a.kind !== 'main') return false;
+    const mode = composerMode(a, { enabled: store.mock || !!store.snapshot?.meta.messages, local: store.mock || access().messages, replaying: store.replaying });
+    return mode.kind === 'ready' || mode.kind === 'hint';
   }
 
   private renderChips(): void {
@@ -471,9 +517,10 @@ export class CallPanel implements UiComponent, CallControl {
       if (p.seen.has(e.id)) continue;
       p.seen.add(e.id);
       if (e.kind !== 'assistant') continue;
+      // Na tela, a resposta inteira e formatada; na voz, a versão limpa (sem código nem links), quando sobra algo.
       const text = speakableText(e.text);
+      this.addLog({ kind: 'agent', who: p.name, text, md: e.text });
       if (!text) continue;
-      this.addLog({ kind: 'agent', who: p.name, text });
       this.speak(withSpeaker(text, p.name, many), p);
       this.lastSpoken = { text: withSpeaker(text, p.name, many), party: p };
     }
@@ -709,8 +756,9 @@ export class CallPanel implements UiComponent, CallControl {
     if (this.log.length > LOG_MAX) this.log.splice(0, this.log.length - LOG_MAX);
     const li = h('li', { class: `ui-call__line is-${line.kind}` });
     if (line.kind === 'me') li.append(h('b', { text: line.who ? tr('Você → {0}: ', [line.who]) : tr('Você: ') }));
-    else if (line.who) li.append(h('b', { text: `${line.who}: ` }));
-    li.append(document.createTextNode(line.text));
+    else if (line.who) li.append(h('b', { class: line.md ? 'ui-call__who' : undefined, text: line.md ? line.who : `${line.who}: ` }));
+    if (line.md) li.append(formatted(line.md));
+    else li.append(document.createTextNode(line.text));
     this.logEl.append(li);
     while (this.logEl.children.length > LOG_MAX) this.logEl.firstElementChild?.remove();
     this.logEl.scrollTop = this.logEl.scrollHeight;

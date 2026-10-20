@@ -3345,4 +3345,5 @@ export const ES: Readonly<Record<string, string>> = {
   "Ociosos saem da sala": "Los ociosos salen de la sala",
   "Após 15 min parados": "Tras 15 min parados",
   "Logo": "Enseguida",
+  "Mostrar tudo ({0} linhas)": "Mostrar todo ({0} líneas)",
 };

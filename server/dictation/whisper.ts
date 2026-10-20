@@ -98,6 +98,9 @@ export function createWhisperTranscriber(setup: WhisperSetup, timeoutMs = TRANSC
         if (!r.ok) throw new Error(tr('o Whisper falhou ({0})', [r.error]));
         return parseWhisperJson(readFileSync(`${out}.json`, 'utf8'));
       };
+      // Um idioma só (HABBLAUD_DICTATION_LANGS=pt): transcreve direto nele, sem detectar (mais rápido e sem confundir
+      // uma frase curta em português com inglês).
+      if (setup.langs.length === 1) return { ...(await pass(setup.langs[0])), lang: setup.langs[0] };
       const first = await pass('auto');
       if (!first.lang || setup.langs.includes(first.lang) || !first.text) return first;
       // Detectou uma língua fora da lista (ex.: "es" para português): refaz no idioma principal.

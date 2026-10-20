@@ -102,6 +102,12 @@ export interface DictationButtonOptions {
   compact?: boolean;
   /** Chamado quando a gravação começa (a caixa guarda para qual agente era o ditado). */
   onStart?: () => void;
+  /** Texto do botão parado (padrão "Ditar"; a ligação usa "Falar"). */
+  idleLabel?: string;
+  /** Aviso ao começar a gravar (padrão: o do ditado). */
+  recordingHint?: string;
+  /** Aviso ao terminar de transcrever (padrão: "Ditado em português: confira o texto."). */
+  doneHint?: (lang: string | undefined) => string;
 }
 
 export class DictationButton {
@@ -120,7 +126,7 @@ export class DictationButton {
     private readonly say: (text: string, error?: boolean) => void,
     private readonly opts: DictationButtonOptions = {},
   ) {
-    this.label = h('span', { class: 'ui-dictate__label', text: opts.compact ? '' : tr('Ditar') });
+    this.label = h('span', { class: 'ui-dictate__label', text: opts.compact ? '' : this.idleText });
     this.el = h('button', {
       class: `ui-btn ui-dictate${opts.compact ? ' ui-dictate--compact' : ''}`,
       type: 'button',
@@ -134,6 +140,19 @@ export class DictationButton {
 
   get busy(): boolean {
     return this.state !== 'idle';
+  }
+
+  get recording(): boolean {
+    return this.state === 'recording';
+  }
+
+  private get idleText(): string {
+    return this.opts.idleLabel ?? tr('Ditar');
+  }
+
+  /** Começa ou para a gravação (atalho de teclado da ligação). */
+  press(): void {
+    void this.toggle();
   }
 
   /** Para a gravação sem transcrever (painel fechado). */
@@ -174,7 +193,7 @@ export class DictationButton {
     this.startedAt = Date.now();
     this.opts.onStart?.();
     this.set('recording');
-    this.say(this.opts.compact ? tr('Gravando… toque no microfone de novo para parar.') : tr('Gravando… fale em português ou inglês e toque em Parar.'));
+    this.say(this.opts.recordingHint ?? (this.opts.compact ? tr('Gravando… toque no microfone de novo para parar.') : tr('Gravando… fale em português ou inglês e toque em Parar.')));
     this.timer = setInterval(() => {
       const ms = Date.now() - this.startedAt;
       const s = Math.floor(ms / 1000);
@@ -230,7 +249,7 @@ export class DictationButton {
       if (!r.text?.trim()) this.say(tr('Não entendi nada na gravação: tente de novo.'), true);
       else {
         this.onText({ text: r.text, lang: r.lang });
-        this.say(dictationDone(r.lang));
+        this.say((this.opts.doneHint ?? dictationDone)(r.lang));
       }
     } catch (err) {
       this.say(tr('Ditado falhou: {0}', [(err as Error).message]), true);
@@ -247,8 +266,8 @@ export class DictationButton {
     this.el.disabled = state === 'working';
     const icon = this.el.querySelector('.ui-dictate__icon');
     if (icon) icon.innerHTML = state === 'recording' ? ICONS.stopRec : ICONS.mic;
-    this.el.setAttribute('aria-label', state === 'recording' ? tr('Parar o ditado') : state === 'working' ? tr('Transcrevendo') : tr('Ditar'));
+    this.el.setAttribute('aria-label', state === 'recording' ? tr('Parar o ditado') : state === 'working' ? tr('Transcrevendo') : this.idleText);
     if (this.opts.compact) setText(this.label, state === 'recording' ? '0:00' : state === 'working' ? '…' : '');
-    else setText(this.label, state === 'recording' ? tr('Parar {0}', ['0:00']) : state === 'working' ? tr('Transcrevendo…') : tr('Ditar'));
+    else setText(this.label, state === 'recording' ? tr('Parar {0}', ['0:00']) : state === 'working' ? tr('Transcrevendo…') : this.idleText);
   }
 }

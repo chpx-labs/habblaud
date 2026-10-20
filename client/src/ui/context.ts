@@ -32,10 +32,22 @@ export interface TerminalRouter {
 
 export type HelpSection = 'usage' | 'codex';
 
+/** Ligação por voz (ui/call.ts): falar com um ou mais agentes principais. */
+export interface CallControl {
+  /** Dá para ligar para este agente daqui (principal ao vivo, mensagens liberadas)? */
+  canCall(agentId: string): boolean;
+  /** Abre a ligação com o agente ou o põe na ligação em curso. Chamar dentro de um clique (o celular só libera a voz assim). */
+  call(agentId: string): void;
+  /** O agente está na ligação? */
+  inCall(agentId: string): boolean;
+}
+
 export interface UiContext {
   readonly store: OfficeStore;
   /** Janela de terminal (definida depois que os painéis existem). */
   terminals?: TerminalRouter;
+  /** Ligação por voz (definida depois que os painéis existem). */
+  call?: CallControl;
   readonly world: WorldApi;
   readonly root: HTMLElement;
   readonly prefs: Readonly<UiPrefs>;

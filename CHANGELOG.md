@@ -10,6 +10,18 @@ do meio (0.**3**.0).
 
 ## [Não lançado]
 
+### Adicionado
+
+- **Ligação: converse por voz com os agentes, um ou vários ao mesmo tempo.** O botão **📞 Ligar** (na seção Mandar
+  mensagem da gaveta) ou a tecla `C` abre a ligação com o agente selecionado. Cada resposta nova dele é lida em voz
+  alta pelo navegador, sem código, tabelas nem links, e quem passa a precisar de você é anunciado. **Falar** grava,
+  o Whisper local transcreve e o texto vai como mensagem; também dá para escrever. Com até 4 agentes na ligação
+  (**+ Chamar…**), cada um fala com uma voz ou um tom, e "Marina, roda os testes" fala com a Marina. A janela se
+  arrasta pela barra do título e se redimensiona pelas bordas (duplo clique devolve ao canto). Funciona pelo celular
+  com `messages` e `terminal` no `HABBLAUD_REMOTE_ALLOW`.
+- **Ditado num idioma só:** com `HABBLAUD_DICTATION_LANGS` de um idioma (ex.: `pt`), o Whisper transcreve direto
+  nele, sem detectar a língua: mais rápido, e frases curtas não viram inglês.
+
 ## [1.0.3] - 2026-10-16
 
 ### Corrigido

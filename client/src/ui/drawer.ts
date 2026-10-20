@@ -244,6 +244,7 @@ class AgentView {
   private actDetail: HTMLElement;
   /** Mandar mensagem ao agente principal pelo Habblaud (plugin habblaud-mensagens). */
   private composer: MessageComposer;
+  private callBtn: HTMLButtonElement;
   private msgSec: ReturnType<typeof section>;
   private tasksSec: ReturnType<typeof section>;
   private tasksBar: HTMLElement;
@@ -357,6 +358,15 @@ class AgentView {
     const nowSec = section(tr('Agora'), h('div', { class: 'ui-now' }, this.actIcon, h('div', { class: 'ui-now__body' }, this.actText, this.actTime)), this.actDetails);
     this.composer = new MessageComposer(ctx, 'drawer');
     this.msgSec = section(tr('Mandar mensagem'), this.composer.el);
+    // Ligação por voz (ui/call.ts): no cabeçalho da seção, ao lado do título.
+    this.callBtn = h('button', {
+      class: 'ui-btn ui-call-btn',
+      type: 'button',
+      text: tr('📞 Ligar'),
+      title: tr('Conversar por voz com este agente (C)'),
+      on: { click: () => this.id && this.ctx.call?.call(this.id) },
+    });
+    this.msgSec.extra.append(this.callBtn);
     // No celular a caixa fica presa no rodapé da gaveta enquanto a conversa rola (styles.css, .ui-sec--msg).
     this.msgSec.el.classList.add('ui-sec--msg');
     this.social = new SocialSection(ctx);
@@ -617,6 +627,13 @@ class AgentView {
 
     // Mandar mensagem: só para principais presentes (com o recurso ligado e a página local; sem o plugin, a dica).
     setHidden(this.msgSec.el, this.composer.render(live, this.id) === 'off');
+    const callable = !!this.id && !!this.ctx.call?.canCall(this.id);
+    setHidden(this.callBtn, !callable);
+    if (callable) {
+      const inCall = this.ctx.call!.inCall(this.id!);
+      setText(this.callBtn, inCall ? tr('📞 Na ligação') : tr('📞 Ligar'));
+      this.callBtn.classList.toggle('is-on', inCall);
+    }
 
     // Vida social (personalidade, carteira, rodas): só de quem está no escritório.
     if (live) this.social.render(a.id, now);

@@ -11147,3 +11147,257 @@ html.is-replay #world {
 .ui-world-chip__visitors[hidden] {
   display: none;
 }
+
+/* ---------------------------------------------------------------- Ligação por voz (ui/call.ts) */
+
+.ui-call-btn {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+
+.ui-call {
+  position: fixed;
+  z-index: 47;
+  right: calc(var(--free-right) + 8px);
+  bottom: calc(var(--free-bottom) + 8px);
+  width: min(480px, calc(100vw - 2 * var(--gap)));
+  height: min(640px, calc(100vh - var(--free-top) - var(--free-bottom) - 16px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--ui-line-strong);
+  /* Opaco: sobre o canvas do escritório, o fundo translúcido deixava o mapa aparecer atrás da conversa. */
+  background: rgb(20, 24, 33);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--ui-text);
+  font: 13px/1.4 var(--font-ui);
+}
+
+.ui-call[hidden] {
+  display: none;
+}
+
+/* Solta pelo arrasto (ui/movable.ts): posição e tamanho vêm do estilo inline. */
+.ui-call.is-floating {
+  right: auto;
+  bottom: auto;
+  max-height: none;
+}
+
+.ui-call__head.ui-move-handle {
+  margin: -10px -12px 0;
+  padding: 10px 12px 4px;
+}
+
+.ui-call__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ui-call__title {
+  flex: 1;
+  margin: 0;
+  font: 600 14px/1.2 var(--font-ui);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-call__end {
+  border-color: color-mix(in srgb, var(--lv-crit) 55%, transparent);
+  color: var(--lv-crit);
+}
+
+.ui-call__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.ui-call__people {
+  display: contents;
+}
+
+.ui-call__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 2px 0 8px;
+  border-radius: 13px;
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-soft);
+}
+
+.ui-call__chip.is-target {
+  border-color: rgba(124, 200, 255, 0.6);
+  background: var(--ui-accent-soft);
+}
+
+.ui-call__chip.is-deaf {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.ui-call__dot {
+  width: 8px;
+  height: 8px;
+  background: var(--st-idle);
+}
+
+.ui-call__chip[data-status='working'] .ui-call__dot {
+  background: var(--st-working);
+}
+
+.ui-call__chip[data-status='waiting'] .ui-call__dot {
+  background: var(--st-waiting);
+  animation: ui-dictate-pulse 1.2s ease-in-out infinite;
+}
+
+.ui-call__chip[data-status='shell'] .ui-call__dot {
+  background: var(--st-shell);
+}
+
+.ui-call__chip-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  font: 600 12.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+
+.ui-call__chip-x {
+  width: 22px;
+  height: 22px;
+}
+
+.ui-call__add {
+  height: 26px;
+  max-width: 150px;
+  border-radius: 13px;
+  border: 1px dashed var(--ui-line-strong);
+  background: transparent;
+  color: var(--ui-muted);
+  font: 12px var(--font-ui);
+  padding: 0 8px;
+}
+
+.ui-call__log {
+  flex: 1 1 auto;
+  min-height: 60px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: var(--ui-bg-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ui-call__log:empty::before {
+  content: '…';
+  color: var(--ui-faint);
+}
+
+.ui-call__line {
+  word-break: break-word;
+}
+
+.ui-call__line.is-me {
+  align-self: flex-end;
+  max-width: 90%;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--ui-accent-soft);
+}
+
+.ui-call__line.is-info {
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ui-call__line.is-error {
+  color: var(--ui-danger, #ff8a8a);
+  font-size: 12px;
+}
+
+.ui-call__status {
+  min-height: 1.4em;
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ui-call__status.is-error {
+  color: var(--ui-danger, #ff8a8a);
+}
+
+.ui-call__controls {
+  display: flex;
+  gap: 8px;
+}
+
+.ui-call__talk {
+  flex: 1;
+  height: 44px;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+
+.ui-call__talk .ui-px-icon,
+.ui-call__talk .ui-dictate__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ui-call__controls > .ui-btn:not(.ui-call__talk) {
+  height: 44px;
+}
+
+.ui-call__hint {
+  margin: 0;
+  color: var(--ui-muted);
+  font-size: 12px;
+}
+
+.ui-call__type {
+  display: flex;
+  gap: 6px;
+}
+
+.ui-call__input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ui-line-strong);
+  background: var(--ui-bg-soft);
+  color: var(--ui-text);
+  font: 13px var(--font-ui);
+}
+
+@media (max-width: 900px) {
+  .ui-call {
+    left: var(--gap);
+    right: var(--gap);
+    bottom: var(--gap);
+    width: auto;
+    height: min(70vh, 560px);
+  }
+
+  .ui-call.is-floating {
+    right: auto;
+    bottom: auto;
+  }
+}

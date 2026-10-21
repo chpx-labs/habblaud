@@ -14,7 +14,7 @@ export interface SectorDay {
   diary: { time?: string; text: string }[];
   /** Arquivos de deliverables/ alterados nas últimas 24 h (mais recentes primeiro). */
   deliveries: { name: string; at: number }[];
-  /** Turno do setor (shifts.json), ou null se não há turnos. */
+  /** Turno do setor (shifts.json), ou null se não há turnos ou o setor não tem turno diário. */
   turn: { active: boolean; time: string; ranToday: boolean } | null;
 }
 
@@ -104,7 +104,7 @@ export async function readCompanyDashboard(dir: string, now = new Date()): Promi
   const tz = (shifts?.hours as { timezone?: unknown } | undefined)?.timezone;
   const day = localDay(now, typeof tz === 'string' ? tz : undefined);
   const { sectors: names, requests } = await readCompanyRequests(dir);
-  const config = shifts?.sectors as Record<string, { active?: boolean; start?: string }> | undefined;
+  const config = shifts?.sectors as Record<string, { active?: boolean; start?: string; daily?: boolean }> | undefined;
   const ran = ((await readJson(join(dir, '.shifts-state.json')))?.shift ?? {}) as Record<string, unknown>;
   const slugs = Object.keys(names).filter((s) => s !== 'ceo');
   const sectors = await Promise.all(
@@ -121,7 +121,8 @@ export async function readCompanyDashboard(dir: string, now = new Date()): Promi
         name: names[slug] ?? slug,
         diary,
         deliveries: await recentDeliveries(join(dir, slug, 'deliverables'), now.getTime()),
-        turn: t ? { active: t.active !== false, time: String(t.start ?? ''), ranToday: ran[slug] === day } : null,
+        // sem turno diário (daily: false, só plantão): o cartão não mostra turno
+        turn: t && t.daily !== false ? { active: t.active !== false, time: String(t.start ?? ''), ranToday: ran[slug] === day } : null,
       };
     }),
   );

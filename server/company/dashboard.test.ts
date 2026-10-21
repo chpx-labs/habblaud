@@ -63,8 +63,12 @@ describe('painel do CEO', () => {
   it('o "hoje" é o do fuso do expediente (shifts.json hours.timezone)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'company-'));
     dirs.push(dir);
-    writeFileSync(join(dir, 'shifts.json'), JSON.stringify({ hours: { timezone: 'America/Sao_Paulo' }, sectors: {} }));
+    writeFileSync(join(dir, 'shifts.json'), JSON.stringify({ hours: { timezone: 'America/Sao_Paulo' }, sectors: { devops: { daily: false } } }));
     // 02:00 UTC do dia 22 = 23:00 do dia 21 em Brasília
-    expect((await readCompanyDashboard(dir, new Date('2026-10-22T02:00:00Z'))).day).toBe('2026-10-21');
+    writeFileSync(join(dir, 'sectors.json'), JSON.stringify({ devops: 'DevOps' }));
+    const d = await readCompanyDashboard(dir, new Date('2026-10-22T02:00:00Z'));
+    expect(d.day).toBe('2026-10-21');
+    // setor só de plantão: sem turno no cartão
+    expect(d.sectors[0].turn).toBeNull();
   });
 });

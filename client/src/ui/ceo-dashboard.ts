@@ -176,7 +176,7 @@ export class CeoDashboard implements UiComponent {
     }
   }
 
-  private async decide(r: CompanyRequest, status: 'feito' | 'recusado'): Promise<void> {
+  private async decide(r: CompanyRequest, status: 'done' | 'declined'): Promise<void> {
     if (this.busy) return;
     this.busy = true;
     try {
@@ -184,7 +184,7 @@ export class CeoDashboard implements UiComponent {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: status === 'feito' ? tr('Aprovado.') : tr('Recusado.'), status }),
+        body: JSON.stringify({ text: status === 'done' ? tr('Aprovado.') : tr('Recusado.'), status }),
       });
       const out = (await res.json().catch(() => ({}))) as { error?: string; notified?: string };
       if (!res.ok) throw new Error(out.error ?? tr('erro {0}', [res.status]));
@@ -230,8 +230,8 @@ export class CeoDashboard implements UiComponent {
           ? h(
               'span',
               { class: 'ui-ceo-dash__req-actions' },
-              h('button', { class: 'ui-btn ui-btn--sm ui-btn--primary', type: 'button', text: tr('Aprovar'), on: { click: () => void this.decide(r, 'feito') } }),
-              h('button', { class: 'ui-btn ui-btn--sm', type: 'button', text: tr('Recusar'), on: { click: () => void this.decide(r, 'recusado') } }),
+              h('button', { class: 'ui-btn ui-btn--sm ui-btn--primary', type: 'button', text: tr('Aprovar'), on: { click: () => void this.decide(r, 'done') } }),
+              h('button', { class: 'ui-btn ui-btn--sm', type: 'button', text: tr('Recusar'), on: { click: () => void this.decide(r, 'declined') } }),
             )
           : null,
       );

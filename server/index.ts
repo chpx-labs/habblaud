@@ -121,7 +121,7 @@ const accounts = new AccountsService({
 const office = new Office({
   names,
   roomAlias: (path) => roomAliases.get(path),
-  // Os setores da empresa (HABBLAUD_COMPANY_DIR/setores.json, menos o CEO): salas fixas no prédio.
+  // Os setores da empresa (HABBLAUD_COMPANY_DIR/sectors.json, menos o CEO): salas fixas no prédio.
   pinnedRooms: config.companyDir ? companySectorRooms(config.companyDir) : undefined,
   version: config.version,
   // No modo dev o Vite serve o cliente direto do código-fonte: não há build para comparar.

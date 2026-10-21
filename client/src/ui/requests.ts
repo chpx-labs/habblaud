@@ -1,7 +1,7 @@
 // Pedidos entre setores (botão do envelope na barra do topo): o que um setor da empresa pediu a outro, lido de
 // GET /api/company/requests (server/company/requests.ts, pasta HABBLAUD_COMPANY_DIR). Abertos primeiro; um toque num
 // pedido mostra o texto e as respostas. O selo conta os abertos. Sem a pasta configurada (404), o botão não aparece.
-// Quem cria e responde são os agentes dos setores (bin/pedido.mjs da pasta da empresa); o CEO, com as mensagens
+// Quem cria e responde são os agentes dos setores (bin/request.mjs da pasta da empresa); o CEO, com as mensagens
 // liberadas, também pede (botão "Novo pedido", com o modelo "App novo") e responde (Aprovar, Recusar, Responder) por aqui:
 // POST /api/company/requests e /api/company/requests/:id/reply, e o setor é avisado pelo escritório.
 import { tr } from '../../../shared/i18n';
@@ -14,7 +14,7 @@ import { ICONS } from './icons';
 export const REQUESTS_URL = '/api/company/requests';
 const POLL_MS = 20_000;
 
-export type RequestStatus = 'aberto' | 'andamento' | 'feito' | 'recusado';
+export type RequestStatus = 'open' | 'in_progress' | 'done' | 'declined';
 
 export interface CompanyRequest {
   id: string;
@@ -30,7 +30,7 @@ export interface CompanyRequest {
 
 // ---------------------------------------------------------------- modelo (puro)
 
-const STATUS = new Set<RequestStatus>(['aberto', 'andamento', 'feito', 'recusado']);
+const STATUS = new Set<RequestStatus>(['open', 'in_progress', 'done', 'declined']);
 
 /** Valida a resposta da API (o que não tiver o formato fica de fora). */
 export function parseRequests(body: unknown): { sectors: Record<string, string>; requests: CompanyRequest[] } {
@@ -45,7 +45,7 @@ export function parseRequests(body: unknown): { sectors: Record<string, string>;
 }
 
 export function isOpen(r: Pick<CompanyRequest, 'status'>): boolean {
-  return r.status === 'aberto' || r.status === 'andamento';
+  return r.status === 'open' || r.status === 'in_progress';
 }
 
 /** Nome do setor (setores.json da empresa), ou o slug mais legível. */
@@ -82,11 +82,11 @@ export function roomBadges(requests: readonly CompanyRequest[], rooms: readonly 
 
 export function statusLabel(s: RequestStatus): string {
   switch (s) {
-    case 'aberto':
+    case 'open':
       return tr('Aberto');
-    case 'andamento':
+    case 'in_progress':
       return tr('Em andamento');
-    case 'feito':
+    case 'done':
       return tr('Feito');
     default:
       return tr('Recusado');
@@ -275,7 +275,7 @@ export class CompanyRequests implements UiComponent {
 
   private async reply(r: CompanyRequest, status: RequestStatus | undefined, input: HTMLTextAreaElement, msg: HTMLElement): Promise<void> {
     if (this.sending) return;
-    const text = input.value.trim() || (status === 'feito' ? tr('Aprovado.') : status === 'recusado' ? tr('Recusado.') : '');
+    const text = input.value.trim() || (status === 'done' ? tr('Aprovado.') : status === 'declined' ? tr('Recusado.') : '');
     if (!text) return void setText(msg, tr('Escreva a resposta.'));
     this.sending = true;
     setText(msg, tr('Enviando…'));
@@ -374,7 +374,7 @@ export class CompanyRequests implements UiComponent {
     const msg = h('p', { class: 'ui-req-msg', role: 'status' });
     const btn = (label: string, status: RequestStatus | undefined, primary = false) =>
       h('button', { class: `ui-btn ui-btn--sm${primary ? ' ui-btn--primary' : ''}`, type: 'button', text: label, on: { click: () => void this.reply(r, status, input, msg) } });
-    const buttons = r.to === 'ceo' ? [btn(tr('Aprovar'), 'feito', true), btn(tr('Recusar'), 'recusado'), btn(tr('Responder'), undefined)] : [btn(tr('Comentar'), undefined)];
+    const buttons = r.to === 'ceo' ? [btn(tr('Aprovar'), 'done', true), btn(tr('Recusar'), 'declined'), btn(tr('Responder'), undefined)] : [btn(tr('Comentar'), undefined)];
     return h('div', { class: 'ui-req-replybox' }, input, h('div', { class: 'ui-req-row' }, ...buttons), msg);
   }
 

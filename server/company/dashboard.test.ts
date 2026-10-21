@@ -25,24 +25,24 @@ describe('painel do CEO', () => {
   });
 
   it('junta diários, entregas do dia, turnos e pedidos (esperando o CEO e parados)', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'empresa-'));
+    const dir = mkdtempSync(join(tmpdir(), 'company-'));
     dirs.push(dir);
     const now = new Date(2026, 9, 21, 12, 0);
-    writeFileSync(join(dir, 'setores.json'), JSON.stringify({ marketing: 'Marketing', ceo: 'CEO' }));
-    mkdirSync(join(dir, 'marketing', 'entregas'), { recursive: true });
-    writeFileSync(join(dir, 'marketing', 'diario.md'), '- 2026-10-21 09:20: Post do ai-fitness\n');
-    writeFileSync(join(dir, 'marketing', 'entregas', 'post.md'), 'x');
-    const old = join(dir, 'marketing', 'entregas', 'velho.md');
+    writeFileSync(join(dir, 'sectors.json'), JSON.stringify({ marketing: 'Marketing', ceo: 'CEO' }));
+    mkdirSync(join(dir, 'marketing', 'deliverables'), { recursive: true });
+    writeFileSync(join(dir, 'marketing', 'log.md'), '- 2026-10-21 09:20: Post do ai-fitness\n');
+    writeFileSync(join(dir, 'marketing', 'deliverables', 'post.md'), 'x');
+    const old = join(dir, 'marketing', 'deliverables', 'velho.md');
     writeFileSync(old, 'x');
     utimesSync(old, new Date(2026, 9, 18), new Date(2026, 9, 18));
-    utimesSync(join(dir, 'marketing', 'entregas', 'post.md'), new Date(2026, 9, 21, 9, 30), new Date(2026, 9, 21, 9, 30));
-    writeFileSync(join(dir, 'turnos.json'), JSON.stringify({ setores: { marketing: { ativo: true, horario: '09:20' } } }));
-    writeFileSync(join(dir, '.turnos-estado.json'), JSON.stringify({ marketing: '2026-10-21' }));
-    mkdirSync(join(dir, 'pedidos'));
-    const req = (id: string, de: string, para: string, at: Date) => ({ id, de, para, titulo: id, texto: '', status: 'aberto', criado: at.toISOString(), atualizado: at.toISOString(), historico: [] });
-    writeFileSync(join(dir, 'pedidos', 'a.json'), JSON.stringify(req('a', 'marketing', 'ceo', new Date(2026, 9, 21, 8))));
-    writeFileSync(join(dir, 'pedidos', 'b.json'), JSON.stringify(req('b', 'ceo', 'marketing', new Date(2026, 9, 19))));
-    writeFileSync(join(dir, 'pedidos', 'c.json'), JSON.stringify(req('c', 'ceo', 'marketing', new Date(2026, 9, 21, 10))));
+    utimesSync(join(dir, 'marketing', 'deliverables', 'post.md'), new Date(2026, 9, 21, 9, 30), new Date(2026, 9, 21, 9, 30));
+    writeFileSync(join(dir, 'shifts.json'), JSON.stringify({ sectors: { marketing: { active: true, start: '09:20' } } }));
+    writeFileSync(join(dir, '.shifts-state.json'), JSON.stringify({ shift: { marketing: '2026-10-21' } }));
+    mkdirSync(join(dir, 'requests'));
+    const req = (id: string, from: string, to: string, at: Date) => ({ id, from, to, title: id, text: '', status: 'open', created: at.toISOString(), updated: at.toISOString(), history: [] });
+    writeFileSync(join(dir, 'requests', 'a.json'), JSON.stringify(req('a', 'marketing', 'ceo', new Date(2026, 9, 21, 8))));
+    writeFileSync(join(dir, 'requests', 'b.json'), JSON.stringify(req('b', 'ceo', 'marketing', new Date(2026, 9, 19))));
+    writeFileSync(join(dir, 'requests', 'c.json'), JSON.stringify(req('c', 'ceo', 'marketing', new Date(2026, 9, 21, 10))));
 
     const d = await readCompanyDashboard(dir, now);
     expect(d.day).toBe('2026-10-21');
@@ -58,5 +58,13 @@ describe('painel do CEO', () => {
     expect(d.waiting.map((r) => r.id)).toEqual(['a']);
     expect(d.stale.map((r) => r.id)).toEqual(['b']);
     expect(d.open).toBe(3);
+  });
+
+  it('o "hoje" é o do fuso do expediente (shifts.json hours.timezone)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'company-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, 'shifts.json'), JSON.stringify({ hours: { timezone: 'America/Sao_Paulo' }, sectors: {} }));
+    // 02:00 UTC do dia 22 = 23:00 do dia 21 em Brasília
+    expect((await readCompanyDashboard(dir, new Date('2026-10-22T02:00:00Z'))).day).toBe('2026-10-21');
   });
 });

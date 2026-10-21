@@ -1,7 +1,8 @@
 // Painel do CEO (GET /api/company/dashboard): o dia da empresa (HABBLAUD_COMPANY_DIR) num lugar só, lido dos arquivos
-// que os setores mantêm: as linhas de hoje do diario.md de cada setor ("- AAAA-MM-DD HH:MM: o que fez"), as entregas
-// alteradas nas últimas 24 h (<setor>/entregas/*), o turno de cada setor (turnos.json e .turnos-estado.json) e, dos
-// pedidos (requests.ts), os que esperam o CEO e os parados há mais de um dia. Só leitura.
+// que os setores mantêm: as linhas de hoje do log.md de cada setor ("- AAAA-MM-DD HH:MM: o que fez"), as entregas
+// alteradas nas últimas 24 h (<setor>/deliverables/*), o turno de cada setor (shifts.json e .shifts-state.json) e, dos
+// pedidos (requests.ts), os que esperam o CEO e os parados há mais de um dia. O "hoje" é o do fuso do expediente
+// (shifts.json `hours.timezone`; sem ele, o do computador). Só leitura.
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { readCompanyRequests, type CompanyRequest } from './requests';
@@ -11,14 +12,14 @@ export interface SectorDay {
   name: string;
   /** Linhas do diário de hoje (as mais recentes por último), sem o "- data". */
   diary: { time?: string; text: string }[];
-  /** Arquivos de entregas/ alterados nas últimas 24 h (mais recentes primeiro). */
+  /** Arquivos de deliverables/ alterados nas últimas 24 h (mais recentes primeiro). */
   deliveries: { name: string; at: number }[];
-  /** Turno do setor (turnos.json), ou null se não há turnos. */
+  /** Turno do setor (shifts.json), ou null se não há turnos. */
   turn: { active: boolean; time: string; ranToday: boolean } | null;
 }
 
 export interface CompanyDashboard {
-  /** Dia de hoje (hora local do computador), AAAA-MM-DD. */
+  /** Dia de hoje (no fuso do expediente), AAAA-MM-DD. */
   day: string;
   sectors: SectorDay[];
   /** Pedidos abertos feitos ao CEO (mais antigos primeiro). */
@@ -34,7 +35,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DIARY_MAX = 8;
 const DELIVERIES_MAX = 8;
 
-export function localDay(d: Date): string {
+export function localDay(d: Date, timeZone?: string): string {
+  if (timeZone) {
+    try {
+      // en-CA escreve AAAA-MM-DD
+      return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+    } catch {
+      // fuso desconhecido: o do computador
+    }
+  }
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
@@ -91,30 +100,32 @@ async function recentDeliveries(dir: string, now: number): Promise<{ name: strin
 }
 
 export async function readCompanyDashboard(dir: string, now = new Date()): Promise<CompanyDashboard> {
-  const day = localDay(now);
+  const shifts = await readJson(join(dir, 'shifts.json'));
+  const tz = (shifts?.hours as { timezone?: unknown } | undefined)?.timezone;
+  const day = localDay(now, typeof tz === 'string' ? tz : undefined);
   const { sectors: names, requests } = await readCompanyRequests(dir);
-  const turnos = (await readJson(join(dir, 'turnos.json')))?.setores as Record<string, { ativo?: boolean; horario?: string }> | undefined;
-  const estado = (await readJson(join(dir, '.turnos-estado.json'))) ?? {};
+  const config = shifts?.sectors as Record<string, { active?: boolean; start?: string }> | undefined;
+  const ran = ((await readJson(join(dir, '.shifts-state.json')))?.shift ?? {}) as Record<string, unknown>;
   const slugs = Object.keys(names).filter((s) => s !== 'ceo');
   const sectors = await Promise.all(
     slugs.map(async (slug): Promise<SectorDay> => {
       let diary: SectorDay['diary'] = [];
       try {
-        diary = diaryLines(await readFile(join(dir, slug, 'diario.md'), 'utf8'), day);
+        diary = diaryLines(await readFile(join(dir, slug, 'log.md'), 'utf8'), day);
       } catch {
         // sem diário
       }
-      const t = turnos?.[slug];
+      const t = config?.[slug];
       return {
         slug,
         name: names[slug] ?? slug,
         diary,
-        deliveries: await recentDeliveries(join(dir, slug, 'entregas'), now.getTime()),
-        turn: t ? { active: t.ativo !== false, time: String(t.horario ?? ''), ranToday: estado[slug] === day } : null,
+        deliveries: await recentDeliveries(join(dir, slug, 'deliverables'), now.getTime()),
+        turn: t ? { active: t.active !== false, time: String(t.start ?? ''), ranToday: ran[slug] === day } : null,
       };
     }),
   );
-  const open = requests.filter((r) => r.status === 'aberto' || r.status === 'andamento');
+  const open = requests.filter((r) => r.status === 'open' || r.status === 'in_progress');
   const nowMs = now.getTime();
   return {
     day,

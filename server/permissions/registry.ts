@@ -254,7 +254,13 @@ export function applyPermission(a: AgentInfo, p: PermissionRequestInfo | undefin
     a.status = 'waiting';
     a.statusSince = p.createdAt;
   }
-  a.waitingFor ??= isQuestion(p) ? tr('responder uma pergunta') : p.provider === 'codex' ? tr('aprovar um comando') : tr('aprovar uma permissão');
+  a.waitingFor ??= isQuestion(p)
+    ? tr('responder uma pergunta')
+    : p.provider === 'codex'
+      ? tr('aprovar um comando')
+      : p.tool === 'McpElicitation'
+        ? tr('confirmar um pedido de uma ferramenta')
+        : tr('aprovar uma permissão');
   return a;
 }
 

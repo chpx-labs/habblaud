@@ -20,9 +20,10 @@ interface HookModule {
   parseOptions(argv: string[], env: NodeJS.ProcessEnv): { port: number; timeoutMs: number };
   requestBody(input: Record<string, unknown>, timeoutMs: number): Record<string, unknown>;
   trimInput(v: unknown, max?: number): unknown;
-  decisionOutput(result: unknown, input: unknown): unknown;
+  decisionOutput(result: unknown, input: unknown, content?: unknown): unknown;
+  elicitationContent(schema: unknown): Record<string, unknown> | undefined;
 }
-const { decisionOutput, parseOptions, requestBody, trimInput } = (await import(pathToFileURL(HOOK).href)) as HookModule;
+const { decisionOutput, elicitationContent, parseOptions, requestBody, trimInput } = (await import(pathToFileURL(HOOK).href)) as HookModule;
 
 /**
  * tool_input de um AskUserQuestion. Os textos que voltam em `answers` são os ORIGINAIS (o escritório só vê os
@@ -37,6 +38,17 @@ const ASK = {
   metadata: { source: 'teste' },
 };
 const askJson = (over: Record<string, unknown> = {}) => hookJson({ tool_name: 'AskUserQuestion', tool_input: ASK, permission_suggestions: [], ...over });
+
+/** Entrada do hook Elicitation: a confirmação de custo do Supabase, com uma caixa de confirmação. */
+const ELICIT = {
+  session_id: 'sess-1',
+  cwd: '/p/loja',
+  hook_event_name: 'Elicitation',
+  mcp_server_name: 'claude.ai Supabase',
+  message: 'Project: $10/month until deleted.',
+  mode: 'form',
+  requested_schema: { type: 'object', properties: { confirm: { type: 'boolean', title: 'Confirm' } } },
+};
 
 interface HookRun {
   code: number | null;
@@ -181,6 +193,35 @@ describe('permission-hook.mjs (processo)', () => {
     expect(srv.registry!.size).toBe(0);
   });
 
+  it('confirmação de um servidor MCP (Elicitation): aceitar no Habblaud = action accept com o conteúdo padrão', async () => {
+    srv = await servePermissions();
+    const run = runHook(JSON.stringify(ELICIT), ['--port', String(srv.port)]);
+    const id = await pendingId(srv);
+    const d = srv.registry!.detail(id)!;
+    expect(d.tool).toBe('McpElicitation');
+    expect(d.text).toContain('Supabase');
+    expect(srv.registry!.decide(id, { behavior: 'allow' })).toBe('ok');
+    const r = await run;
+    expect(r.code).toBe(0);
+    expect(JSON.parse(r.stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'Elicitation', action: 'accept', content: { confirm: true } } });
+  });
+
+  it('confirmação MCP recusada no Habblaud: action decline', async () => {
+    srv = await servePermissions();
+    const run = runHook(JSON.stringify(ELICIT), ['--port', String(srv.port)]);
+    srv.registry!.decide(await pendingId(srv), { behavior: 'deny', message: 'caro' });
+    expect(JSON.parse((await run).stdout)).toEqual({ hookSpecificOutput: { hookEventName: 'Elicitation', action: 'decline' } });
+  });
+
+  it('confirmação MCP que pede um link ou um campo de texto: sai sem decisão, vale o terminal', async () => {
+    srv = await servePermissions();
+    for (const over of [{ mode: 'url', url: 'https://x.example' }, { requested_schema: { type: 'object', properties: { name: { type: 'string' } } } }, { message: '' }]) {
+      const r = await runHook(JSON.stringify({ ...ELICIT, ...over }), ['--port', String(srv.port)]);
+      expect(r, JSON.stringify(over)).toMatchObject({ code: 0, stdout: '' });
+    }
+    expect(srv.registry!.size).toBe(0);
+  });
+
   it('tempo limite (--timeout): desiste, sai sem decisão e o pedido some do escritório', async () => {
     srv = await servePermissions({ registry: { orphanMs: 300 } });
     const r = await runHook(JSON.stringify(hookJson()), ['--port', String(srv.port), '--timeout', '5']);
@@ -193,6 +234,14 @@ describe('permission-hook.mjs (processo)', () => {
 });
 
 describe('permission-hook.mjs (funções)', () => {
+  it('elicitationContent: valores padrão, caixa de confirmação e opção única; campo livre = undefined', () => {
+    expect(elicitationContent(undefined)).toEqual({});
+    expect(elicitationContent({ type: 'object', properties: {} })).toEqual({});
+    expect(elicitationContent({ properties: { ok: { type: 'boolean' }, plan: { type: 'string', default: 'free' }, region: { type: 'string', enum: ['sa'] } } })).toEqual({ ok: true, plan: 'free', region: 'sa' });
+    expect(elicitationContent({ properties: { name: { type: 'string' } } })).toBeUndefined();
+    expect(elicitationContent({ properties: { n: { type: 'number' } } })).toBeUndefined();
+  });
+
   it('parseOptions: argumentos, ambiente e limites', () => {
     expect(parseOptions([], {})).toEqual({ port: 4747, timeoutMs: 300_000 });
     expect(parseOptions(['--port', '4851', '--timeout', '60'], {})).toEqual({ port: 4851, timeoutMs: 60_000 });

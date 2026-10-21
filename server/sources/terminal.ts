@@ -13,7 +13,7 @@
 // - erros da API: uma linha system `api_error` por tentativa e, quando o Claude Code desiste, uma
 //   mensagem sintética do assistant com `isApiErrorMessage`.
 import type { TerminalEntry, TerminalInputKind } from '../../shared/types';
-import { formatDuration, maskSecrets, truncate } from '../../shared/activity';
+import { formatDuration, maskSecrets, mcpServerLabel, truncate } from '../../shared/activity';
 import { forkDirective, parseTaskNotification } from './transcript';
 import { tr } from '../../shared/i18n';
 
@@ -284,6 +284,9 @@ export function toolView(name: string, input: Rec, cwd?: string): ToolView {
   const path = s('file_path') ?? s('notebook_path') ?? s('path');
   const rel = path ? relPath(path, cwd) : undefined;
   switch (name) {
+    case 'McpElicitation':
+      // confirmação de um servidor MCP: o título é o servidor e o corpo, a mensagem dele (ex.: o custo)
+      return { title: titled('MCP', mcpServerLabel(s('server') ?? '')), ...textInput(s('message')) };
     case 'Bash':
       return { title: titled('Bash', s('command')), ...textInput(s('command'), 'command') };
     case 'Monitor':

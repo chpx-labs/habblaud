@@ -97,6 +97,9 @@ export function focusPermission(ctx: UiContext, agentId: string): void {
 export const isLocalHostname = isLoopbackHostname;
 
 /** Pedido que se responde escolhendo (as perguntas do AskUserQuestion), não aprovando. O Codex nunca pergunta. */
+/** Pedido de confirmação de um servidor MCP (hook Elicitation do mod habblaud-permissoes). */
+export const ELICIT_TOOL = 'McpElicitation';
+
 export function isQuestionRequest(p: Pick<PermissionRequestInfo, 'tool' | 'questions' | 'provider'> | undefined): boolean {
   return !!p && p.provider !== 'codex' && p.tool === ASK_TOOL && !!p.questions?.length;
 }
@@ -335,7 +338,10 @@ export class PermissionCard {
       this.icon.innerHTML = ask ? ICONS.help : ICONS.lock;
       setAttr(this.el, 'aria-label', ask ? tr('Pergunta do agente') : tr('Pedido de permissão'));
     }
-    setText(this.title, ask ? (p.questions!.length > 1 ? tr('Perguntas para você') : tr('Pergunta para você')) : tr('Pede permissão'));
+    // Confirmação pedida por um servidor MCP (ex.: o custo de criar um projeto no Supabase): Aceitar / Recusar.
+    const confirm = p.tool === ELICIT_TOOL;
+    setText(this.title, ask ? (p.questions!.length > 1 ? tr('Perguntas para você') : tr('Pergunta para você')) : confirm ? tr('Pede confirmação') : tr('Pede permissão'));
+    setText(this.approveBtn, confirm ? tr('✓ Aceitar') : tr('✓ Aprovar'));
     const by = p.subagent ? tr(' · subagente {0}', [p.subagent]) : '';
     setText(this.what, ask ? tr('Aqui ou no terminal: vale a primeira resposta{0}', [by]) :`${p.icon} ${p.text}${by}`);
     setText(this.timer, expiryText(p.expiresAt, now, opts.seconds));

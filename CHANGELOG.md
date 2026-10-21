@@ -12,6 +12,12 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Confirmações de ferramentas pelo escritório.** Quando um servidor MCP pede uma confirmação no meio do trabalho (ex.: o
+  Supabase avisando "Project: $10/month until deleted" antes de criar um projeto), o agente aparece esperando e o cartão
+  mostra "Pede confirmação" com **Aceitar** e **Recusar**, como as permissões. Vem no plugin `habblaud-permissoes` (rode
+  `npm run mod:install` de novo; vale para as sessões abertas depois). Formulário com campo para preencher ou link para
+  abrir continua no terminal.
+
 - **O mascote do CEO.** O Billy, um cachorro em pixel art, anda com o CEO pelo escritório: segue de perto (corre se
   ficar para trás), deita do lado quando o CEO senta e dorme se a espera for longa; parado, senta, abana o rabo, coça a
   orelha. Quando um agente acena para o CEO, ele vai até o agente abanar o rabo, e um clique nele é carinho (coração).

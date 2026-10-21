@@ -25,6 +25,13 @@
 //    vêm do stdin. "Responder no terminal", tempo esgotado ou qualquer erro: sai sem imprimir nada, e
 //    vale o que você responder no terminal.
 //
+// Também responde, pelo mesmo caminho, as confirmações que um servidor MCP pede no meio de uma ferramenta (hook
+// `Elicitation`, ex.: "Project: $10/month until deleted. Accept / Decline" do Supabase): vão ao Habblaud como o
+// pedido "McpElicitation" (servidor e mensagem) e voltam como `action: accept` (com o conteúdo do formulário
+// preenchido pelos valores padrão) ou `decline`. Só confirmações: formulário com campo que o escritório não sabe
+// preencher (texto sem padrão, número...) ou pedido de abrir um link sai sem decidir e vale o terminal. Diferente do
+// PermissionRequest, o diálogo do terminal só aparece DEPOIS que este hook sai.
+//
 // Regras: Node puro (22+), sem dependências; nunca trava nem quebra a sessão (todo erro = sair sem
 // decidir). Só fala com 127.0.0.1. HABBLAUD_HOOK_DEBUG=1 escreve o que acontece no stderr.
 import { realpathSync } from 'node:fs';
@@ -46,6 +53,9 @@ const MAX_STRING = 8_000;
 const MAX_BODY = 200_000;
 /** Ferramenta das perguntas ao usuário: a resposta é uma escolha (decisão `answer`), não aprovar/recusar. */
 const ASK_TOOL = 'AskUserQuestion';
+/** Nome do pedido de confirmação de um servidor MCP no Habblaud (hook Elicitation). */
+export const ELICIT_TOOL = 'McpElicitation';
+const ELICIT_EVENT = 'Elicitation';
 
 const debug = process.env.HABBLAUD_HOOK_DEBUG === '1' ? (msg) => process.stderr.write(`[habblaud-hook] ${msg}\n`) : () => {};
 
@@ -88,6 +98,43 @@ export function requestBody(input, timeoutMs) {
   return body;
 }
 
+/**
+ * Conteúdo de "aceitar" de uma confirmação MCP: cada campo do formulário com o valor padrão dele; booleano sem padrão
+ * = true (a caixa "confirmo"); enum sem padrão com uma opção só = essa opção. undefined = tem campo que só a pessoa
+ * sabe preencher (vale o terminal). Sem campos: {}.
+ */
+export function elicitationContent(schema) {
+  if (schema === undefined || schema === null) return {};
+  if (typeof schema !== 'object' || Array.isArray(schema)) return undefined;
+  const props = schema.properties ?? {};
+  if (typeof props !== 'object' || Array.isArray(props)) return undefined;
+  const out = {};
+  for (const [k, def] of Object.entries(props)) {
+    if (!def || typeof def !== 'object') return undefined;
+    if (def.default !== undefined) out[k] = def.default;
+    else if (def.type === 'boolean') out[k] = true;
+    else if (Array.isArray(def.enum) && def.enum.length === 1) out[k] = def.enum[0];
+    else if (def.const !== undefined) out[k] = def.const;
+    else return undefined;
+  }
+  return out;
+}
+
+/**
+ * Entrada do hook Elicitation vista como um pedido de permissão para o Habblaud (tool_name McpElicitation, com o
+ * servidor e a mensagem), mais o conteúdo de "aceitar". undefined = não dá para responder pelo escritório.
+ */
+export function elicitationRequest(input) {
+  if (!input || input.hook_event_name !== ELICIT_EVENT || typeof input.session_id !== 'string') return undefined;
+  if (input.mode === 'url' || typeof input.message !== 'string' || !input.message.trim()) return undefined;
+  const content = elicitationContent(input.requested_schema);
+  if (!content) return undefined;
+  const server = typeof input.mcp_server_name === 'string' ? input.mcp_server_name : '';
+  const req = { ...input, tool_name: ELICIT_TOOL, tool_input: { server, message: input.message } };
+  delete req.permission_suggestions;
+  return { req, content };
+}
+
 /** Texto não vazio (as respostas usam os textos do stdin como vieram, sem aparar). */
 const text = (v) => typeof v === 'string' && v.trim() !== '';
 
@@ -128,8 +175,14 @@ export function answersFor(answers, toolInput) {
  * escolhida na página volta só como a POSIÇÃO: aplica-se a sugestão original que o Claude Code mandou.
  * Pergunta (AskUserQuestion): só `answer` aprova (sem `answers` a chamada não teria resposta); recusar vale.
  */
-export function decisionOutput(result, input) {
+export function decisionOutput(result, input, elicitContent) {
   if (!result || result.status !== 'decided') return undefined;
+  if (input?.hook_event_name === ELICIT_EVENT) {
+    // Confirmação de um servidor MCP: aprovar = aceitar (com o conteúdo padrão); recusar = recusar.
+    if (result.behavior === 'allow' && elicitContent) return { hookSpecificOutput: { hookEventName: ELICIT_EVENT, action: 'accept', content: elicitContent } };
+    if (result.behavior === 'deny') return { hookSpecificOutput: { hookEventName: ELICIT_EVENT, action: 'decline' } };
+    return undefined;
+  }
   const ask = input?.tool_name === ASK_TOOL;
   if (result.behavior === 'answer') {
     const answers = ask ? answersFor(result.answers, input.tool_input) : undefined;
@@ -208,8 +261,15 @@ export async function run(argv = process.argv.slice(2), env = process.env, stdin
     } catch {
       return undefined;
     }
+    let elicitContent;
+    if (input?.hook_event_name === ELICIT_EVENT) {
+      const e = elicitationRequest(input);
+      if (!e) return undefined;
+      elicitContent = e.content;
+      input = e.req;
+    }
     if (!input || typeof input !== 'object' || typeof input.session_id !== 'string' || typeof input.tool_name !== 'string') return undefined;
-    if (input.hook_event_name !== undefined && input.hook_event_name !== 'PermissionRequest') return undefined;
+    if (input.hook_event_name !== undefined && input.hook_event_name !== 'PermissionRequest' && input.hook_event_name !== ELICIT_EVENT) return undefined;
 
     const base = `http://127.0.0.1:${opts.port}`;
     const deadline = Date.now() + opts.timeoutMs;
@@ -231,7 +291,7 @@ export async function run(argv = process.argv.slice(2), env = process.env, stdin
       const status = r.json?.status;
       if (status === 'pending') continue;
       debug(`resposta: ${JSON.stringify(r.json)}`);
-      return decisionOutput(r.json, input);
+      return decisionOutput(r.json, input, elicitContent);
     }
   } catch (err) {
     debug(`erro: ${err?.message ?? err}`);

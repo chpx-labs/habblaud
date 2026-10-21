@@ -73,6 +73,13 @@ pelo celular longe do computador, ponha `"env": { "HABBLAUD_PERMISSION_TIMEOUT":
 conta: vale para as sessões abertas depois. Subagentes em segundo plano só mostram o diálogo quando o hook termina,
 por isso o padrão continua 5 min. Precisa de `node` 22+ no `PATH` da sessão.
 
+O mesmo script também atende o evento `Elicitation` (matcher "*" = todos os servidores MCP): quando um servidor MCP pede
+uma confirmação no meio de uma ferramenta (ex.: o Supabase, "Project: $10/month until deleted. Accept / Decline"), o
+pedido aparece no escritório como "Pede confirmação", com **Aceitar** e **Recusar**. Aceitar responde `action: accept`
+com o formulário preenchido pelos valores padrão (caixa de confirmação marcada); recusar, `decline`. Formulário com
+campo que só você sabe preencher, ou pedido de abrir um link, sai sem decidir e vale o terminal. Diferente das
+permissões, no `Elicitation` o diálogo do terminal só aparece depois que o hook sai (ou o tempo esgota).
+
 `claude plugin validate --strict mod/habblaud-permissoes`: `✔ Validation passed` (o validador também confere o
 esquema do `hooks.json`).
 

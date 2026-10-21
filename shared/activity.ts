@@ -634,6 +634,11 @@ function humanize(id: string): string {
     .toLowerCase();
 }
 
+/** Nome legível de um servidor MCP ("claude.ai Supabase", "claude_ai_Supabase" -> "Supabase"). */
+export function mcpServerLabel(server: string): string {
+  return server.replace(/^claude[._ ]ai[_ ]/i, '').replace(/_/g, ' ').trim();
+}
+
 function describeMcp(name: string, input: Record<string, unknown>): ActivityDescription {
   const [, server = '', ...rest] = name.split('__');
   const tool = rest.join('__');
@@ -660,6 +665,11 @@ export function describeTool(name: string, rawInput: unknown): ActivityDescripti
   const file = str(input.file_path) || str(input.notebook_path) || str(input.path);
 
   switch (name) {
+    case 'McpElicitation': {
+      // confirmação pedida por um servidor MCP no meio de uma ferramenta (hook Elicitation, mod habblaud-permissoes)
+      const srv = mcpServerLabel(str(input.server));
+      return make('mcp', '🔌', srv ? tr('{0} pede confirmação', [srv]) : tr('Confirmação de uma ferramenta'), str(input.message));
+    }
     case 'Read':
       if (IMAGE_EXT.test(file)) return make('read', '🖼️', tr('Olhando {0}', [basename(file)]), file);
       if (/\.pdf$/i.test(file)) return make('read', '📕', tr('Lendo {0}', [basename(file)]), file);

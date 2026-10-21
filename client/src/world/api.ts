@@ -2,6 +2,7 @@
 // Implementação: client/src/world/index.ts -> createWorld().
 // Regra: mudanças aqui devem ser ADITIVAS.
 import type { AppearanceParts } from '../../../shared/appearance';
+import type { PetCoat } from '../art/pet/dog';
 
 export type Selection = { type: 'agent'; id: string } | { type: 'room'; id: string } | null;
 
@@ -60,11 +61,19 @@ export interface SoundCue {
 }
 
 /** O CEO do próprio escritório (sala do CEO, layout/ceo.ts): o personagem que você controla. */
+/** O mascote do CEO (um cachorro): nome e cor do pelo. */
+export interface CeoPet {
+  name: string;
+  coat: PetCoat;
+}
+
 export interface CeoMe {
   name: string;
   look: 'f' | 'm';
   seed: number;
   parts?: AppearanceParts;
+  /** O mascote que anda com o CEO; null = sem mascote. */
+  pet?: CeoPet | null;
 }
 
 export interface CeoWorld {

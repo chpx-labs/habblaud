@@ -22,6 +22,7 @@ const CEO_LANYARD = '#c9a227';
 import { rebaseSnapshot } from './playback';
 import { Overlay } from './render/overlay';
 import { Renderer } from './render/renderer';
+import { petPat } from './sim/pet';
 import { Sim, type VisitLight } from './sim/sim';
 import { NO_INTENT, VISITOR_ID, visitorInfo, type VisitorIntent } from './sim/visitor';
 import { SoundCues } from './sound-cues';
@@ -200,6 +201,12 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     return !!h && h.visible && w.x >= h.bx - slack && w.x <= h.bx + h.bw + slack && w.y >= h.by - slack && w.y <= h.by + h.bh + slack;
   };
   const ceoClickCbs = new Set<() => void>();
+  /** O ponto (px de mundo) está sobre o mascote? */
+  const petAt = (w: { x: number; y: number }): boolean => {
+    const b = renderer.petBox;
+    const slack = Math.max(2, 4 / camera.zoom);
+    return !!sim.pet && b.visible && w.x >= b.x - slack && w.x <= b.x + b.w + slack && w.y >= b.y - slack && w.y <= b.y + b.h + slack;
+  };
 
   const pick = (sx: number, sy: number): Hit => {
     const w = camera.screenToWorld(sx, sy);
@@ -243,8 +250,13 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     if (visitMode) return;
     if (!ceoMe) {
       sim.setVisitor(null, Date.now());
+      sim.setPet(null);
       return;
     }
+    const placePet = () => {
+      const p = ceoMe?.pet;
+      sim.setPet(p ? { name: p.name, coat: p.coat } : null);
+    };
     const now = Date.now();
     const room = ceoRect();
     const info = { ...visitorInfo(ceoMe, now), roomId: CEO_ROOM_ID, role: tr('CEO'), seed: ceoMe.seed };
@@ -253,11 +265,11 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     const was = old && !old.gone ? { x: old.x, y: old.y, tx: old.tx, ty: old.ty, dir: old.dir, seat: old.atSpot } : null;
     const ch = sim.setVisitor(info, now, { at: { tx: room.x + 7, ty: room.y + 8, dir: 'up' }, lanyard: CEO_LANYARD, badge: 'CEO' });
     if (ch && was) {
-      if (was.seat && sim.visitorSit(was.seat, true)) return;
-      Object.assign(ch, { x: was.x, y: was.y, tx: was.tx, ty: was.ty, dir: was.dir });
-      return;
+      if (!(was.seat && sim.visitorSit(was.seat, true))) Object.assign(ch, { x: was.x, y: was.y, tx: was.tx, ty: was.ty, dir: was.dir });
+      return placePet();
     }
     sim.visitorSitAtDesk();
+    placePet();
   };
   const followVisitor = () => {
     if (!sim.visitor) return;
@@ -270,6 +282,8 @@ export function createWorld(canvas: HTMLCanvasElement, store: OfficeStore, o: Cr
     click: (hit, at) => {
       // Clique no CEO: liga o controle (a UI anuncia e mostra a barrinha).
       if (!visitMode && hit?.type === 'agent' && hit.id === VISITOR_ID) return ceoClickCbs.forEach((cb) => cb());
+      // Clique no mascote: carinho (abana o rabo com um coração).
+      if (!visitMode && hit?.type !== 'agent' && sim.pet && petAt(camera.screenToWorld(at.x, at.y))) return petPat(sim.pet, Date.now());
       return visitMode || (ceoControl && sim.visitor) ? visitClick(hit, at) : setSelection(hit);
     },
     doubleClick: (hit) => {

@@ -12,6 +12,11 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **O mascote do CEO.** O Billy, um cachorro em pixel art, anda com o CEO pelo escritório: segue de perto (corre se
+  ficar para trás), deita do lado quando o CEO senta e dorme se a espera for longa; parado, senta, abana o rabo, coça a
+  orelha. Quando um agente acena para o CEO, ele vai até o agente abanar o rabo, e um clique nele é carinho (coração).
+  No lápis do CEO: com ou sem mascote, o nome e o pelo (caramelo, chocolate, preto ou branco). Fica só no navegador.
+
 - **Painel do CEO.** Com `HABBLAUD_COMPANY_DIR`, a maleta na barra do topo (tecla `B`) abre o dia da empresa: o que espera
   você (com Aprovar/Recusar ali mesmo), quantos pedidos estão abertos e parados há mais de um dia, e um cartão por setor
   com quem está aberto, o turno, as linhas de hoje do `diario.md`, as entregas das últimas 24 h e os tokens das sessões

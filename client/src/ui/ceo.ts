@@ -7,7 +7,9 @@
 import { tr } from '../../../shared/i18n';
 import type { CeoMe } from '../world/api';
 import { intentFrom, moveKeyOf } from '../world/city/input';
-import { CeoEditor } from './ceo-editor';
+import { CeoEditor, DEFAULT_PET } from './ceo-editor';
+import { isPetCoat } from '../art/pet/dog';
+import type { CeoPet } from '../world/api';
 import type { UiComponent, UiContext } from './context';
 import { h, iconButton, setHidden, setText } from './dom';
 import { ICONS } from './icons';
@@ -18,14 +20,29 @@ export function loadCeo(): CeoMe {
   try {
     const raw = JSON.parse(localStorage.getItem(CEO_KEY) ?? 'null') as Partial<CeoMe> | null;
     if (raw && typeof raw.seed === 'number' && (raw.look === 'f' || raw.look === 'm')) {
-      return { name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.slice(0, 24) : tr('Você'), look: raw.look, seed: raw.seed >>> 0, ...(raw.parts ? { parts: raw.parts } : {}) };
+      return {
+        name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.slice(0, 24) : tr('Você'),
+        look: raw.look,
+        seed: raw.seed >>> 0,
+        ...(raw.parts ? { parts: raw.parts } : {}),
+        pet: petOf(raw.pet),
+      };
     }
   } catch {
     // sem armazenamento ou dado estragado: sorteia
   }
-  const me: CeoMe = { name: tr('Você'), look: Math.random() < 0.5 ? 'f' : 'm', seed: Math.floor(Math.random() * 2 ** 31) };
+  const me: CeoMe = { name: tr('Você'), look: Math.random() < 0.5 ? 'f' : 'm', seed: Math.floor(Math.random() * 2 ** 31), pet: { ...DEFAULT_PET } };
   saveCeo(me);
   return me;
+}
+
+/** O mascote gravado: ausente (gravado antes do mascote existir) = o padrão; null = sem mascote. */
+function petOf(raw: unknown): CeoPet | null {
+  if (raw === null) return null;
+  const p = raw as Partial<CeoPet> | undefined;
+  if (!p || typeof p !== 'object') return { ...DEFAULT_PET };
+  const name = typeof p.name === 'string' && p.name.trim() ? p.name.trim().slice(0, 16) : DEFAULT_PET.name;
+  return { name, coat: isPetCoat(p.coat) ? p.coat : DEFAULT_PET.coat };
 }
 
 export function saveCeo(me: CeoMe): void {
@@ -132,7 +149,7 @@ export class CeoControl implements UiComponent {
     const control = this.control;
     ceo?.set(me);
     if (control) ceo?.setControl(true);
-    this.ctx.announce(tr('CEO salvo: {0}.', [me.name]));
+    this.ctx.announce(me.pet ? tr('CEO salvo: {0}, com {1}.', [me.name, me.pet.name]) : tr('CEO salvo: {0}.', [me.name]));
   }
 
   /** Fala com o agente ao alcance: liga para ele (ou o põe na ligação); sem mensagens, abre os detalhes dele. */

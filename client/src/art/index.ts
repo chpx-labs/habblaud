@@ -28,6 +28,7 @@ import type { BufSprite } from './core/sprite';
 import { drawBoard, drawClock, drawScreen, drawWindowView, footballLance } from './dynamic';
 import { normalizeFurniture, renderFurniture } from './furniture/index';
 import { renderIcon } from './icons';
+import { PET_DURATION, PET_FRAMES, renderDog, type PetFrameRequest, type PetPose } from './pet/dog';
 import { CHUNK_PX, floorChunk } from './surfaces/floor';
 import { WALL_CAP_H, WALL_FACE_H, capColor, southWallTile, wallFaceTile } from './surfaces/walls';
 import { renderRug } from './surfaces/rug';
@@ -106,6 +107,24 @@ export function characterSprite(req: CharacterFrameRequest): Sprite {
   const seated = isSeated(req.pose, req.seated);
   const key = `${keyOf(req.appearance)}|${req.dir}|${req.pose}|${frame}|${req.held ?? 'none'}|${seated ? 1 : 0}|${req.costume ?? 'none'}`;
   return charCache.get(key, () => toSprite(renderCharacter({ ...req, frame, seated })));
+}
+
+// ------------------------------------------------------------------ mascote
+
+const petCache = new Cache<Sprite>(512);
+
+export function petFrameCount(pose: PetPose): number {
+  return PET_FRAMES[pose] ?? 1;
+}
+
+export function petFrameDuration(pose: PetPose): number {
+  return PET_DURATION[pose] ?? 500;
+}
+
+export function petSprite(req: PetFrameRequest): Sprite {
+  const n = petFrameCount(req.pose);
+  const frame = ((Math.floor(req.frame) % n) + n) % n;
+  return petCache.get(`${req.coat}|${req.dir}|${req.pose}|${frame}`, () => toSprite(renderDog({ ...req, frame })));
 }
 
 export function avatarCanvas(seed: number, opts: { look?: 'f' | 'm'; sub?: boolean; scale?: number; parts?: AppearanceParts } = {}): HTMLCanvasElement {
@@ -328,6 +347,9 @@ const _contract: ArtModule = {
   roomTheme,
   iconSprite,
   avatarCanvas,
+  petSprite,
+  petFrameCount,
+  petFrameDuration,
 };
 void _contract;
 

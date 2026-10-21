@@ -38,6 +38,7 @@ import { RoomState } from './room-state';
 import { countShells, latestShellDone, shellLabel, shellStage, shellWaitSince, spinDir, spinPhase, yawnPhase } from './shell';
 import { SpotRegistry } from './spots';
 import type { Step } from './steps';
+import { Pet, petGreet, placePet, updatePet, type PetConfig, type PetOwner } from './pet';
 import { canStand, EXIT_RADIUS, NO_INTENT, stepFree, tileAt, VISITOR_LANYARD, type VisitorIntent } from './visitor';
 import { tr } from '../../../../shared/i18n';
 
@@ -146,6 +147,8 @@ export class Sim {
   readonly visit: boolean;
   /** Visita: o meu personagem (fora de `chars`: nem snapshot, nem vida social, nem lugar reservado). */
   visitor: Character | null = null;
+  /** O mascote do CEO (sim/pet.ts): só no próprio escritório, com o CEO na sala. */
+  pet: Pet | null = null;
   /** Visita: para onde o teclado manda o visitante. */
   visitorIntent: VisitorIntent = { ...NO_INTENT };
   /** Visita: as luzes do prédio (aplicadas a cada snapshot e a cada segundo). */
@@ -596,6 +599,7 @@ export class Sim {
       this.runVisitor(this.visitor, dt, now);
       this.greetVisitor(now);
     }
+    if (this.pet) this.runPet(this.pet, dt, now);
     for (const [id, ch] of this.chars) {
       if (ch.gone) {
         this.spots.releaseAll(id);
@@ -623,6 +627,8 @@ export class Sim {
     for (const [id, until] of this.machineUntil) if (until < now) this.machineUntil.delete(id);
     this.refreshRoomInfo();
     if (this.visit) this.applyVisitLight(now);
+    const owner = this.petOwner();
+    if (this.pet && owner) placePet(this.pet, owner, this.building.grid);
   }
 
   private updateRooms(now: number): void {
@@ -1987,6 +1993,7 @@ export class Sim {
       if (now - (this.greetedAt.get(ch.id) ?? -Infinity) < GREET_COOLDOWN_MS) continue;
       this.greetedAt.set(ch.id, now);
       ch.setIcon('wave', GREET_MS, now);
+      if (this.pet) petGreet(this.pet, ch, now);
       if (ch.step || ch.queue.length || ch.gathering || now < ch.reactUntil) continue;
       const dir = ch.seated ? undefined : dirOf(v.x - ch.x, v.y - ch.y, ch.dir);
       ch.queue.push({ t: 'act', pose: 'raise_hand', ms: GREET_MS, held: ch.held, ...(dir ? { dir } : {}) });
@@ -2006,6 +2013,41 @@ export class Sim {
         if (room.lightOn && this.occupants(room) === 0 && !this.switchClaimValid(room)) room.setLight(false, at);
       } else if (!room.lightOn && room.phase === 'ready') room.setLight(true, at);
     }
+  }
+
+  // ------------------------------------------------------------------- o mascote do CEO
+
+  /** Põe (ou troca, ou tira com null) o mascote do CEO: aparece ao lado dele. Trocar nome ou pelo mantém o lugar. */
+  setPet(cfg: PetConfig | null): Pet | null {
+    if (!cfg || this.visit) {
+      this.pet = null;
+      return null;
+    }
+    const old = this.pet;
+    if (old) {
+      old.name = cfg.name;
+      old.coat = cfg.coat;
+      return old;
+    }
+    const pet = new Pet(cfg);
+    const owner = this.petOwner();
+    if (owner) placePet(pet, owner, this.building.grid);
+    this.pet = pet;
+    return pet;
+  }
+
+  /** O CEO, como o mascote o vê (null sem CEO). */
+  private petOwner(): PetOwner | null {
+    const v = this.visitor;
+    if (!v || v.gone || this.visit) return null;
+    return { x: v.x, y: v.y, dir: v.dir, seated: v.seated, moving: v.pose === 'walk' || v.pose === 'run' };
+  }
+
+  private readonly petPath = (sx: number, sy: number, gx: number, gy: number, out: number[]): boolean => this.findPath(sx, sy, gx, gy, out);
+
+  private runPet(pet: Pet, dt: number, now: number): void {
+    const owner = this.petOwner();
+    if (owner) updatePet(pet, owner, { grid: this.building.grid, path: this.petPath }, dt, now);
   }
 
   /** Visita: o teclado anda livre (com colisão); senão, o passo da fila (elevador, caminho do clique). */

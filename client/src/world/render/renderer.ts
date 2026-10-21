@@ -11,6 +11,7 @@ import { slotAt } from '../layout/geometry';
 import type { ExteriorProp } from '../layout/types';
 import { screenModeFor } from '../sim/behavior';
 import type { Character } from '../sim/character';
+import type { Pet } from '../sim/pet';
 import type { RoomState } from '../sim/room-state';
 import { cobwebScale, hourglassIcon, HOURGLASS_FLIP_MS, STORM_LIFT } from '../sim/shell';
 import type { Sim } from '../sim/sim';
@@ -30,12 +31,13 @@ const enum K {
   Char,
   Prop,
   Car,
+  Pet,
 }
 
 interface Ent {
   k: K;
   y: number;
-  ref: FurnVis | Character | ExteriorProp | Car | null;
+  ref: FurnVis | Character | ExteriorProp | Car | Pet | null;
   area: AreaVis | null;
   scale: number;
 }
@@ -437,6 +439,10 @@ export class Renderer {
       }
       push(K.Char, ch.depth(), ch, null, 1);
     }
+    // o mascote do CEO
+    const pet = this.sim.pet;
+    this.petBox.visible = false;
+    if (pet && this.sim.visitor && !this.sim.visitor.gone && visible(pet.x - 16, pet.y - 24, 32, 28)) push(K.Pet, pet.y - 0.1, pet, null, 1);
     for (const prop of this.exterior.props) {
       if (!visible(prop.x - 24, prop.y - 56, 48, 60)) continue;
       let alpha = 1;
@@ -486,6 +492,9 @@ export class Renderer {
           break;
         case K.Car:
           this.drawCar(e.ref as Car);
+          break;
+        case K.Pet:
+          this.drawPet(e.ref as Pet, now);
           break;
       }
     }
@@ -919,6 +928,35 @@ export class Renderer {
       this.particles.popcorn(px, py);
       if (Math.random() < 0.3) this.particles.popcorn(px, py);
     }
+  }
+
+  /** Caixa do mascote na tela (px de mundo), para o clique. */
+  readonly petBox = { x: 0, y: 0, w: 0, h: 0, visible: false };
+
+  private drawPet(pet: Pet, now: number): void {
+    const { ctx, art } = this;
+    if (!art.petSprite) return;
+    const x = Math.round(pet.x);
+    const y = Math.round(pet.y);
+    const sh = shadowSprite();
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.drawImage(sh.canvas, x - Math.round(sh.ax * 0.8), y - sh.ay, Math.round(sh.canvas.width * 0.8), sh.canvas.height);
+    ctx.restore();
+    const count = Math.max(1, art.petFrameCount?.(pet.pose) ?? 1);
+    const dur = Math.max(30, art.petFrameDuration?.(pet.pose) ?? 500);
+    let sprite: Sprite;
+    try {
+      sprite = art.petSprite({ coat: pet.coat, dir: pet.dir, pose: pet.pose, frame: Math.floor(pet.animT / dur) % count });
+    } catch {
+      return;
+    }
+    const sx = x - sprite.ax;
+    const sy = y - sprite.ay;
+    ctx.drawImage(sprite.canvas, sx, sy);
+    const b = opaqueBounds(sprite.canvas);
+    Object.assign(this.petBox, { x: sx + b.x, y: sy + b.y, w: b.w, h: b.h, visible: true });
+    if (pet.icon) this.pushIcon(x, sy + b.y - 1, pet.icon, Math.round(Math.max(0, 1 - (now - pet.iconAt) / 250) * 4), 1, 0);
   }
 
   private pushIcon(x: number, y: number, name: IconName, bounce: number, alpha: number, badge: number): void {

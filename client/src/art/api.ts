@@ -334,11 +334,18 @@ export type IconName = 'alert' | 'question' | 'zzz' | 'check' | 'heart' | 'coffe
   | 'hand_paper' // gesto de papel (mão aberta) (~10px)
   | 'hand_scissors'; // gesto de tesoura (V) (~10px)
 
+export type { PetCoat, PetFrameRequest, PetPose } from './pet/dog';
+import type { PetFrameRequest, PetPose } from './pet/dog';
+
 /** Assinatura que art/index.ts deve exportar (o mundo e a UI dependem disto). */
 export interface ArtModule {
   appearanceFromSeed(seed: number, opts?: { look?: 'f' | 'm'; sub?: boolean; parts?: AppearanceParts }): Appearance;
   /** Ancoragem: (ax, ay) = centro dos pés (ponto no chão). Personagem ocupa ~14–18px de largura e ~24–28px de altura. */
   characterSprite(req: CharacterFrameRequest): Sprite;
+  /** (Opcional, aditivo) O mascote do CEO (art/pet/dog.ts): âncora no chão, entre as patas; ~20x15px. */
+  petSprite?(req: PetFrameRequest): Sprite;
+  petFrameCount?(pose: PetPose): number;
+  petFrameDuration?(pose: PetPose): number;
   poseFrameCount(pose: Pose): number;
   /** Duração de cada frame da pose em ms. */
   poseFrameDuration(pose: Pose): number;

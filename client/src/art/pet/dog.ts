@@ -77,7 +77,7 @@ function side(b: PixelBuf, p: DogPal, pose: PetPose, f: number): void {
   if (pose === 'lie' || pose === 'sleep') return sideLying(b, p, pose, f);
   if (pose === 'sit' || pose === 'scratch') return sideSitting(b, p, pose, f);
   const moving = pose === 'walk' || pose === 'run';
-  const bob = moving && (f === 1 || f === 3) ? -1 : 0;
+  const bob = pose === 'run' && (f === 1 || f === 3) ? -1 : 0;
   const sw = moving ? [1, 0, -1, 0][f] * (pose === 'run' ? 2 : 1) : 0;
   // patas do lado de lá (mais escuras), depois as de cá
   const leg = (x: number, c: string, lift: number) => {
@@ -189,7 +189,7 @@ function front(b: PixelBuf, p: DogPal, pose: PetPose, f: number): void {
   const lying = pose === 'lie' || pose === 'sleep';
   const sitting = pose === 'sit' || pose === 'scratch';
   const moving = pose === 'walk' || pose === 'run';
-  const bob = moving && (f === 1 || f === 3) ? -1 : 0;
+  const bob = pose === 'run' && (f === 1 || f === 3) ? -1 : 0;
   if (lying) {
     // só a cabeça sobre as patas, o corpo atrás
     const breath = f === 1 ? 1 : 0;
@@ -255,7 +255,7 @@ function back(b: PixelBuf, p: DogPal, pose: PetPose, f: number): void {
   const lying = pose === 'lie' || pose === 'sleep';
   const sitting = pose === 'sit' || pose === 'scratch';
   const moving = pose === 'walk' || pose === 'run';
-  const bob = moving && (f === 1 || f === 3) ? -1 : 0;
+  const bob = pose === 'run' && (f === 1 || f === 3) ? -1 : 0;
   if (lying) {
     round(b, 5, 10, 12, 5, p.B);
     b.hline(7, 15, 10, p.H);

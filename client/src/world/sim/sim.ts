@@ -627,8 +627,6 @@ export class Sim {
     for (const [id, until] of this.machineUntil) if (until < now) this.machineUntil.delete(id);
     this.refreshRoomInfo();
     if (this.visit) this.applyVisitLight(now);
-    const owner = this.petOwner();
-    if (this.pet && owner) placePet(this.pet, owner, this.building.grid);
   }
 
   private updateRooms(now: number): void {
@@ -2164,6 +2162,9 @@ export class Sim {
       }
     }
     if (this.visit) this.applyVisitLight(now);
+    // a aba voltou: o mascote reaparece ao lado do CEO
+    const owner = this.petOwner();
+    if (this.pet && owner) placePet(this.pet, owner, this.building.grid);
   }
 
   private finishStep(ch: Character, s: Step, now: number): void {

@@ -55,6 +55,8 @@ export class Pet {
   pathAt = 0;
   pathGoal = -1;
   stuckSince = 0;
+  /** Andou há pouco: mantém a pose de andar até aqui (não pisca entre andar e parar). */
+  walkUntil = 0;
   private readonly rng: () => number;
 
   constructor(cfg: PetConfig, rng: () => number = Math.random) {
@@ -228,7 +230,8 @@ export function updatePet(pet: Pet, owner: PetOwner, w: PetWorld, dt: number, no
 
   // seguindo o dono
   const moving = pet.pose === 'walk' || pet.pose === 'run';
-  if (dOwner > FOLLOW || (moving && dOwner > NEAR)) {
+  // o dono andando: acompanha já (sem parar e arrancar); parado: só sai do lugar se ficou longe
+  if (dOwner > FOLLOW || ((moving || owner.moving) && dOwner > NEAR)) {
     pet.restingSince = 0;
     pet.trickUntil = 0;
     const run = dOwner > RUN_FROM;
@@ -236,14 +239,15 @@ export function updatePet(pet: Pet, owner: PetOwner, w: PetWorld, dt: number, no
     const bx = pet.x;
     const by = pet.y;
     walkTo(pet, w, target.x, target.y, run ? RUN_SPEED : WALK_SPEED * 1.1, dt, now);
+    const stepped = Math.hypot(pet.x - bx, pet.y - by) > 0.01;
+    if (stepped) pet.walkUntil = now + 250;
     if (Math.hypot(target.x - pet.x, target.y - pet.y) < 1) {
       // chegou ao lado do dono
-      pet.setPose('stand');
+      pet.setPose(now < pet.walkUntil ? pet.pose : 'stand');
       pet.dir = dirOf(owner.x - pet.x, owner.y - pet.y, pet.dir);
       pet.nextTrickAt = now + 2500 + pet.roll() * 3000;
       return;
     }
-    const stepped = Math.hypot(pet.x - bx, pet.y - by) > 0.01;
     if (!stepped) {
       if (!pet.stuckSince) pet.stuckSince = now;
       else if (now - pet.stuckSince > STUCK_MS) placePet(pet, owner, w.grid);
@@ -252,6 +256,8 @@ export function updatePet(pet: Pet, owner: PetOwner, w: PetWorld, dt: number, no
     return;
   }
   pet.stuckSince = 0;
+  // acabou de chegar: termina o passo antes de parar
+  if (moving && now < pet.walkUntil) return;
 
   // perto do dono (o carinho termina antes)
   if (pet.pose === 'wag' && now < pet.trickUntil) return;
@@ -266,6 +272,16 @@ export function updatePet(pet: Pet, owner: PetOwner, w: PetWorld, dt: number, no
     pet.setPose('stand');
     pet.dir = dirOf(owner.x - pet.x, owner.y - pet.y, pet.dir);
     pet.nextTrickAt = now + 2500 + pet.roll() * 3000;
+  }
+  if (owner.moving) {
+    // o dono anda por perto: fica de pé olhando para ele, sem gracinha
+    pet.trickUntil = 0;
+    pet.restingSince = 0;
+    if (now < pet.walkUntil) return;
+    pet.setPose('stand');
+    pet.dir = dirOf(owner.x - pet.x, owner.y - pet.y, pet.dir);
+    pet.nextTrickAt = now + 2500 + pet.roll() * 3000;
+    return;
   }
   if (now < pet.trickUntil) return;
   if (pet.pose === 'lie' || pet.pose === 'sleep') {

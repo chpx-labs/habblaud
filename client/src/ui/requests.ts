@@ -8,6 +8,7 @@ import { tr } from '../../../shared/i18n';
 import { access } from '../net/access';
 import type { UiComponent, UiContext } from './context';
 import { h, iconButton, setHidden, setText } from './dom';
+import { richText } from './richtext';
 import { relativeTime } from './format';
 import { ICONS } from './icons';
 
@@ -147,7 +148,7 @@ export class CompanyRequests implements UiComponent {
     this.formText = h('textarea', { class: 'ui-req-input ui-req-area', attrs: { rows: 4, maxlength: 8000, placeholder: tr('O que precisa, por quê e para quando'), 'aria-label': tr('Texto do pedido') } });
     this.formKind.addEventListener('change', () => {
       const app = this.formKind.value === 'app';
-      if (app) this.formTo.value = 'produto-design';
+      if (app) this.formTo.value = 'product-design';
       this.formTitle.placeholder = app ? tr('Nome provisório do app') : tr('Título curto');
       this.formText.placeholder = app ? tr('A ideia: para quem é, o problema que resolve, o que ele faz') : tr('O que precisa, por quê e para quando');
     });
@@ -216,7 +217,9 @@ export class CompanyRequests implements UiComponent {
     this.paint();
     const r = this.button.getBoundingClientRect();
     this.el.style.top = `${Math.round(r.bottom + 8)}px`;
-    this.el.style.right = `${Math.max(8, Math.round(innerWidth - r.right - 4))}px`;
+    // largo (até 760 px): se não couber à esquerda do botão, encosta na borda esquerda
+    const width = Math.min(760, innerWidth - 16);
+    this.el.style.right = `${Math.max(8, Math.min(Math.round(innerWidth - r.right - 4), innerWidth - width - 8))}px`;
     if (typeof this.el.showPopover === 'function') this.el.showPopover();
     else this.el.classList.add('is-open');
     void this.refresh();
@@ -236,7 +239,7 @@ export class CompanyRequests implements UiComponent {
     if (on) {
       const opts = Object.keys(this.sectors).filter((k) => k !== 'ceo');
       this.formTo.replaceChildren(...opts.map((k) => h('option', { text: sectorName(this.sectors, k), attrs: { value: k } })));
-      if (this.formKind.value === 'app') this.formTo.value = 'produto-design';
+      if (this.formKind.value === 'app') this.formTo.value = 'product-design';
       setText(this.formMsg, '');
     }
     setHidden(this.form, !on);
@@ -402,15 +405,20 @@ export class CompanyRequests implements UiComponent {
     );
     const card = h('div', { class: `ui-req-card${open ? ' is-open' : ''}` }, head);
     if (open) {
-      const body = h('div', { class: 'ui-req-card__body' }, h('p', { class: 'ui-req-text', text: r.text }));
+      const body = h('div', { class: 'ui-req-card__body' }, h('div', { class: 'ui-req-text' }, richText(r.text)));
       for (const e of r.history) {
         body.append(
           h(
             'div',
-            { class: 'ui-req-reply' },
-            h('b', { text: name(e.sector) }),
-            h('span', { class: 'ui-req-when', text: `${relativeTime(e.at, now)}${e.status ? ` · ${statusLabel(e.status)}` : ''}` }),
-            e.text ? h('p', { class: 'ui-req-text', text: e.text }) : null,
+            { class: `ui-req-reply${e.sector === 'ceo' ? ' is-ceo' : ''}` },
+            h(
+              'div',
+              { class: 'ui-req-reply__head' },
+              h('b', { text: name(e.sector) }),
+              h('span', { class: 'ui-req-when', text: relativeTime(e.at, now) }),
+              e.status ? h('span', { class: `ui-req-status is-${e.status}`, text: statusLabel(e.status) }) : null,
+            ),
+            e.text ? h('div', { class: 'ui-req-text' }, richText(e.text)) : null,
           ),
         );
       }

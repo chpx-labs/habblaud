@@ -12,6 +12,12 @@ do meio (0.**3**.0).
 
 ### Adicionado
 
+- **Pedidos entre setores mais fáceis de ler.** O envelope abre mais largo (até 760 px) e mais alto, com letra maior, e o
+  texto dos pedidos e das respostas vem formatado: parágrafos, listas (inclusive a numeração corrida "1) … 2) …"),
+  **negrito**, `código`, caminhos de arquivo em fonte de código e links clicáveis. Cada resposta é um balão, com as do
+  CEO em destaque e o status ao lado. As cores do status voltaram, e "App novo" no formulário vai para o Produto e
+  Design pelo nome novo do setor.
+
 - **Confirmações de ferramentas pelo escritório.** Quando um servidor MCP pede uma confirmação no meio do trabalho (ex.: o
   Supabase avisando "Project: $10/month until deleted" antes de criar um projeto), o agente aparece esperando e o cartão
   mostra "Pede confirmação" com **Aceitar** e **Recusar**, como as permissões. Vem no plugin `habblaud-permissoes` (rode

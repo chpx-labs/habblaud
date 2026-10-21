@@ -11749,14 +11749,19 @@ html.is-replay #world {
   color: #fff;
 }
 
+/* largo para ler os pedidos (o popover base tem 330 px) */
+.ui-popover.ui-req {
+  width: min(760px, calc(100vw - 16px));
+}
+
 .ui-req-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
-  padding: 0 10px 12px;
+  padding: 0 12px 14px;
   list-style: none;
-  max-height: min(60vh, 520px);
+  max-height: min(76vh, 900px);
   overflow-y: auto;
 }
 
@@ -11773,10 +11778,10 @@ html.is-replay #world {
 .ui-req-card__head {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 4px 8px;
+  gap: 6px 10px;
   align-items: center;
   width: 100%;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border: 0;
   background: transparent;
   color: var(--ui-text);
@@ -11788,7 +11793,8 @@ html.is-replay #world {
 .ui-req-title {
   grid-column: 1 / -1;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .ui-req-route {
@@ -11812,47 +11818,114 @@ html.is-replay #world {
   white-space: nowrap;
 }
 
-.ui-req-status.is-aberto {
+.ui-req-status.is-open {
   background: rgba(255, 181, 71, 0.18);
   color: #ffb547;
 }
 
-.ui-req-status.is-andamento {
+.ui-req-status.is-in_progress {
   background: rgba(106, 162, 255, 0.18);
   color: #8bb6ff;
 }
 
-.ui-req-status.is-feito {
+.ui-req-status.is-done {
   background: rgba(80, 200, 120, 0.18);
   color: #6fd896;
 }
 
-.ui-req-status.is-recusado {
+.ui-req-status.is-declined {
   background: rgba(255, 107, 107, 0.16);
   color: #ff8a8a;
 }
 
 .ui-req-card__body {
-  padding: 0 10px 10px;
+  padding: 4px 14px 14px;
   border-top: 1px solid var(--ui-line);
 }
 
 .ui-req-text {
-  margin: 8px 0 0;
-  font-size: 12.5px;
-  white-space: pre-wrap;
+  margin: 10px 0 0;
+  font-size: 13.5px;
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 
-.ui-req-reply {
-  margin-top: 10px;
-  padding-left: 8px;
-  border-left: 2px solid var(--ui-line-strong);
+/* texto formatado (ui/richtext.ts) */
+.ui-rich > p {
+  margin: 0 0 8px;
 }
 
-.ui-req-reply > b {
-  margin-right: 6px;
-  font-size: 12px;
+.ui-rich > ul,
+.ui-rich > ol {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+
+.ui-rich > ul {
+  list-style: disc;
+}
+
+.ui-rich > ol {
+  list-style: decimal;
+}
+
+.ui-rich li {
+  margin: 3px 0;
+}
+
+.ui-rich li::marker {
+  color: var(--ui-muted);
+}
+
+.ui-rich > :last-child {
+  margin-bottom: 0;
+}
+
+.ui-rich strong {
+  font-weight: 700;
+}
+
+.ui-rich code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(127, 140, 170, 0.16);
+  font: 12.5px/1.4 var(--font-mono, ui-monospace, SFMono-Regular, Consolas, monospace);
+  overflow-wrap: anywhere;
+}
+
+.ui-rich a {
+  color: var(--ui-accent);
+  overflow-wrap: anywhere;
+}
+
+/* respostas: um balão por resposta; as do CEO em destaque */
+.ui-req-reply {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--ui-line);
+  border-left: 3px solid var(--ui-line-strong);
+  background: rgba(127, 140, 170, 0.06);
+}
+
+.ui-req-reply.is-ceo {
+  border-left-color: var(--ui-accent);
+  background: rgba(106, 162, 255, 0.07);
+}
+
+.ui-req-reply__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.ui-req-reply__head > b {
+  font-size: 12.5px;
+}
+
+.ui-req-reply .ui-req-text {
+  margin-top: 6px;
 }
 
 .ui-req-none,
